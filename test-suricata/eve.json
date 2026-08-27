@@ -1,0 +1,1 @@
+{"timestamp":"2026-07-25T08:10:00.000Z","event_type":"alert","src_ip":"192.168.1.25","src_port":52544,"dest_ip":"10.0.0.10","dest_port":80,"proto":"TCP","alert":{"signature":"ET WEB_SERVER SQL Injection Attempt","severity":2,"category":"Web Application Attack"}}
