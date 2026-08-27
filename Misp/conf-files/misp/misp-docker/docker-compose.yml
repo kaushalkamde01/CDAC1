@@ -1,0 +1,83 @@
+services:
+
+  db:
+    image: mariadb:10.11
+    container_name: misp-db
+    restart: unless-stopped
+
+    environment:
+      MYSQL_DATABASE: misp
+      MYSQL_USER: misp
+      MYSQL_PASSWORD: misp_password
+      MYSQL_ROOT_PASSWORD: root_password
+
+    volumes:
+      - mariadb_data:/var/lib/mysql
+
+    networks:
+      - misp-network
+
+
+  redis:
+    image: redis:7
+    container_name: misp-redis
+    restart: unless-stopped
+
+    command: redis-server --requirepass redispassword
+
+    volumes:
+      - redis_data:/data
+
+    networks:
+      - misp-network
+
+
+  misp-core:
+    image: ghcr.io/misp/misp-docker/misp-core:latest
+    container_name: misp-core
+    restart: unless-stopped
+
+    depends_on:
+      - db
+      - redis
+
+    environment:
+
+      # Database
+      MYSQL_HOST: db
+      MYSQL_DATABASE: misp
+      MYSQL_USER: misp
+      MYSQL_PASSWORD: misp_password
+
+      # Redis
+      REDIS_FQDN: redis
+      REDIS_PASSWORD: redispassword
+
+      # General
+      BASE_URL: https://misp.kpk.local
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    volumes:
+      - misp_files:/var/www/MISP/app/files
+      - misp_config:/var/www/MISP/app/Config
+      - ./certs/cert.pem:/etc/nginx/certs/cert.pem:ro
+      - ./certs/key.pem:/etc/nginx/certs/key.pem:ro
+    networks:
+      - misp-network
+
+
+volumes:
+
+  mariadb_data:
+  redis_data:
+  misp_files:
+  misp_config:
+
+
+networks:
+
+  misp-network:
+    driver: bridge
