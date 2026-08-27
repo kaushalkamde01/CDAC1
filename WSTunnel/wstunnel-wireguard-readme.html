@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WSTunnel over WireGuard — Field Notes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e13;
+    --bg-2:#0d131a;
+    --panel:#111820;
+    --panel-2:#151d27;
+    --border:#212c38;
+    --border-soft:#1a232d;
+    --text:#dce4ec;
+    --text-dim:#7f8fa0;
+    --text-dimmer:#576374;
+    --teal:#49c5b1;
+    --teal-dim:#2c6b62;
+    --amber:#e2a23b;
+    --rust:#e2673f;
+    --green:#63c07a;
+    --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans:'IBM Plex Sans', -apple-system, sans-serif;
+    --radius:3px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(circle at 12% 0%, rgba(73,197,177,0.06), transparent 40%),
+      radial-gradient(circle at 88% 8%, rgba(226,162,59,0.05), transparent 35%),
+      var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--teal-dim); color:#fff;}
+  a{color:var(--teal);}
+  code, pre, .mono{font-family:var(--mono);}
+
+  /* ---------- Layout shell ---------- */
+  .shell{display:flex; min-height:100vh;}
+  .sidebar{
+    width:272px; flex:0 0 272px;
+    position:sticky; top:0; align-self:flex-start; height:100vh;
+    border-right:1px solid var(--border-soft);
+    background:var(--bg-2);
+    display:flex; flex-direction:column;
+    overflow-y:auto;
+    z-index:20;
+  }
+  .sidebar::-webkit-scrollbar{width:8px;}
+  .sidebar::-webkit-scrollbar-thumb{background:var(--border); border-radius:8px;}
+
+  .brand{
+    padding:22px 20px 16px 20px;
+    border-bottom:1px solid var(--border-soft);
+  }
+  .brand .tag{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; color:var(--teal);
+    text-transform:uppercase; display:block; margin-bottom:6px;
+  }
+  .brand h1{font-size:16.5px; margin:0; font-weight:600; letter-spacing:-0.01em;}
+  .brand .sub{color:var(--text-dim); font-size:12px; margin-top:6px;}
+
+  .tabbar{display:flex; flex-wrap:wrap; gap:4px; padding:14px 14px 8px 14px;}
+  .tabbtn{
+    flex:1 1 calc(50% - 4px); font-family:var(--mono); font-size:10.5px; letter-spacing:.01em;
+    background:transparent; border:1px solid var(--border); color:var(--text-dim);
+    padding:8px 4px; border-radius:var(--radius); cursor:pointer; text-align:center;
+    transition:all .15s ease; white-space:nowrap;
+  }
+  .tabbtn:hover{color:var(--text); border-color:var(--teal-dim);}
+  .tabbtn.active{background:rgba(73,197,177,0.1); border-color:var(--teal); color:var(--teal);}
+
+  .toc{padding:6px 10px 24px 10px; flex:1;}
+  .toc-group{display:none;}
+  .toc-group.active{display:block;}
+  .toc a{
+    display:block; font-size:12.5px; color:var(--text-dim); text-decoration:none;
+    padding:6px 10px; border-radius:var(--radius); border-left:2px solid transparent;
+    margin-bottom:1px; transition:all .12s ease;
+  }
+  .toc a:hover{color:var(--text); background:var(--panel);}
+  .toc a.active{color:var(--teal); border-left-color:var(--teal); background:rgba(73,197,177,0.06);}
+  .toc .toc-num{color:var(--text-dimmer); margin-right:6px; font-family:var(--mono); font-size:11px;}
+
+  .sidebar-foot{
+    padding:14px 20px; border-top:1px solid var(--border-soft);
+    font-size:11px; color:var(--text-dimmer); font-family:var(--mono);
+  }
+
+  .main{flex:1; min-width:0;}
+  .content-wrap{max-width:880px; margin:0 auto; padding:0 32px 100px 32px;}
+
+  /* ---------- Hero ---------- */
+  .hero{
+    padding:70px 32px 50px 32px;
+    border-bottom:1px solid var(--border-soft);
+    position:relative; overflow:hidden;
+  }
+  .hero-inner{max-width:880px; margin:0 auto; position:relative; z-index:2;}
+  .eyebrow{
+    font-family:var(--mono); font-size:11.5px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--amber); margin-bottom:16px; display:flex; align-items:center; gap:8px;
+  }
+  .eyebrow::before{content:''; width:6px; height:6px; background:var(--amber); border-radius:50%; display:inline-block; box-shadow:0 0 8px var(--amber);}
+  .hero h1{
+    font-size:clamp(30px,4vw,44px); line-height:1.08; margin:0 0 18px 0; font-weight:600; letter-spacing:-0.02em;
+  }
+  .hero h1 .accent{color:var(--teal);}
+  .hero p.lede{color:var(--text-dim); font-size:16px; max-width:640px; margin:0 0 30px 0;}
+
+  .badges{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:42px;}
+  .badge{
+    font-family:var(--mono); font-size:11.5px; color:var(--text-dim);
+    border:1px solid var(--border); padding:5px 10px; border-radius:20px;
+    background:var(--panel);
+  }
+  .badge b{color:var(--text); font-weight:500;}
+
+  /* Signature: packet layer diagram */
+  .layers{position:relative; height:210px; margin-top:10px;}
+  .layer{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    border-radius:10px; border:1px solid; display:flex; align-items:flex-start; justify-content:flex-start;
+    padding:10px 14px;
+  }
+  .layer span{font-family:var(--mono); font-size:10.5px; letter-spacing:.06em;}
+  .l1{width:760px; height:200px; border-color:#2a3542; background:rgba(255,255,255,0.012); color:var(--text-dimmer);}
+  .l2{width:600px; height:158px; border-color:var(--teal-dim); background:rgba(73,197,177,0.035); color:var(--teal);}
+  .l3{width:440px; height:112px; border-color:#4a3a1c; background:rgba(226,162,59,0.05); color:var(--amber);}
+  .l4{width:280px; height:64px; border-color:#3a2f6e; background:rgba(140,120,230,0.08); color:#9c8ef0;}
+  .l1 span{content:'TCP 443';}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.55;}}
+  .l4{animation:pulse 3.2s ease-in-out infinite;}
+  .l3{animation:pulse 3.2s ease-in-out infinite .3s;}
+  .layers-caption{
+    display:flex; justify-content:space-between; font-family:var(--mono); font-size:10.5px;
+    color:var(--text-dimmer); margin-top:10px; max-width:760px;
+  }
+
+  /* ---------- Section chrome ---------- */
+  section.block{padding:56px 0 8px 0; border-bottom:1px solid var(--border-soft); scroll-margin-top:24px;}
+  section.block:last-of-type{border-bottom:none;}
+  .block-head{display:flex; align-items:baseline; gap:12px; margin-bottom:6px;}
+  .block-head .idx{font-family:var(--mono); color:var(--teal); font-size:13px;}
+  .block-head h2{font-size:22px; margin:0; font-weight:600; letter-spacing:-0.01em;}
+  .block-desc{color:var(--text-dim); font-size:14.5px; margin:10px 0 26px 0; max-width:680px;}
+
+  /* accordion (details) styling for steps */
+  details.step{
+    border:1px solid var(--border); border-radius:var(--radius); background:var(--panel);
+    margin-bottom:10px; overflow:hidden;
+  }
+  details.step[open]{border-color:var(--teal-dim);}
+  details.step summary{
+    list-style:none; cursor:pointer; padding:14px 18px; display:flex; align-items:center; gap:12px;
+    font-weight:500; font-size:14.5px; user-select:none;
+  }
+  details.step summary::-webkit-details-marker{display:none;}
+  details.step summary .chev{
+    font-family:var(--mono); color:var(--text-dimmer); transition:transform .18s ease; flex:0 0 auto;
+  }
+  details.step[open] summary .chev{transform:rotate(90deg); color:var(--teal);}
+  details.step summary .stepnum{
+    font-family:var(--mono); font-size:11px; color:var(--teal); background:rgba(73,197,177,0.08);
+    border:1px solid var(--teal-dim); padding:2px 7px; border-radius:12px; flex:0 0 auto;
+  }
+  .step-body{padding:2px 18px 20px 18px; color:var(--text-dim); font-size:14px;}
+  .step-body p{margin:10px 0;}
+  .step-body strong{color:var(--text); font-weight:600;}
+
+  /* code blocks */
+  .codeblock{position:relative; margin:12px 0;}
+  pre{
+    background:#0c1117; border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 16px; overflow-x:auto; margin:0; font-size:12.8px; line-height:1.6;
+    color:#c9d6df;
+  }
+  pre .c-flag{color:var(--amber);}
+  pre .c-comment{color:var(--text-dimmer);}
+  .copy-btn{
+    position:absolute; top:8px; right:8px; font-family:var(--mono); font-size:10.5px;
+    background:var(--panel-2); color:var(--text-dim); border:1px solid var(--border);
+    padding:4px 9px; border-radius:var(--radius); cursor:pointer; opacity:0; transition:opacity .15s ease;
+  }
+  .codeblock:hover .copy-btn{opacity:1;}
+  .copy-btn:hover{color:var(--teal); border-color:var(--teal-dim);}
+  .copy-btn.copied{color:var(--green); border-color:var(--green); opacity:1;}
+
+  /* ascii diagram box */
+  .diagram{
+    background:var(--bg-2); border:1px dashed var(--border); border-radius:var(--radius);
+    padding:14px 18px; font-family:var(--mono); font-size:12.3px; color:var(--text-dim);
+    white-space:pre; overflow-x:auto; margin:14px 0; line-height:1.55;
+  }
+  .diagram .hi{color:var(--teal);}
+  .diagram .hi2{color:var(--amber);}
+
+  /* tables */
+  table{width:100%; border-collapse:collapse; margin:14px 0; font-size:13px;}
+  th{
+    text-align:left; font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--text-dimmer); border-bottom:1px solid var(--border); padding:8px 10px; font-weight:500;
+  }
+  td{padding:9px 10px; border-bottom:1px solid var(--border-soft); color:var(--text-dim); vertical-align:top;}
+  tr:hover td{background:rgba(255,255,255,0.012); color:var(--text);}
+  td.k, td strong.k{color:var(--text); font-family:var(--mono); font-size:12.5px;}
+
+  .callout{
+    border-left:2px solid var(--teal); background:rgba(73,197,177,0.05);
+    padding:12px 16px; border-radius:0 var(--radius) var(--radius) 0; font-size:13.5px; color:var(--text-dim); margin:14px 0;
+  }
+  .callout.warn{border-left-color:var(--amber); background:rgba(226,162,59,0.05);}
+  .callout.finding{border-left-color:#9c8ef0; background:rgba(140,120,230,0.05);}
+  .callout b{color:var(--text);}
+
+  .kv-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin:14px 0;}
+  .kv{border:1px solid var(--border); border-radius:var(--radius); padding:10px 14px; background:var(--panel);}
+  .kv .k{font-family:var(--mono); font-size:10.5px; color:var(--text-dimmer); letter-spacing:.05em; text-transform:uppercase;}
+  .kv .v{font-family:var(--mono); font-size:13.5px; color:var(--text); margin-top:3px;}
+
+  .findings{list-style:none; padding:0; margin:14px 0;}
+  .findings li{
+    padding:12px 16px; border:1px solid var(--border); border-radius:var(--radius);
+    margin-bottom:8px; background:var(--panel); font-size:13.8px; color:var(--text-dim);
+    display:flex; gap:10px;
+  }
+  .findings li::before{content:'▸'; color:var(--teal); flex:0 0 auto;}
+
+  /* search box for troubleshooting */
+  .search-wrap{position:relative; margin:14px 0 18px 0;}
+  .search-wrap input{
+    width:100%; background:var(--panel); border:1px solid var(--border); color:var(--text);
+    font-family:var(--mono); font-size:13px; padding:10px 14px 10px 34px; border-radius:var(--radius);
+    outline:none;
+  }
+  .search-wrap input:focus{border-color:var(--teal-dim);}
+  .search-wrap::before{
+    content:'⌕'; position:absolute; left:12px; top:50%; transform:translate(0,-50%); color:var(--text-dimmer); font-size:15px;
+  }
+  .no-match{color:var(--text-dimmer); font-size:13px; padding:16px; text-align:center; display:none;}
+
+  /* setup guide stepper */
+  .stage-label{
+    font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--amber); margin:44px 0 16px 0; padding-bottom:8px; border-bottom:1px solid var(--border-soft);
+    display:flex; align-items:center; gap:10px;
+  }
+  .stage-label:first-of-type{margin-top:0;}
+  .stage-label .n{color:var(--text-dimmer); font-weight:400;}
+  .stepper{counter-reset:none; margin:0;}
+  .stepper-item{
+    display:flex; gap:16px; position:relative; padding-bottom:28px;
+  }
+  .stepper-item:last-child{padding-bottom:4px;}
+  .stepper-item::before{
+    content:''; position:absolute; left:15px; top:34px; bottom:0; width:1px; background:var(--border);
+  }
+  .stepper-item:last-child::before{display:none;}
+  .stepper-num{
+    flex:0 0 auto; width:32px; height:32px; border-radius:50%; border:1px solid var(--teal-dim);
+    background:rgba(73,197,177,0.08); color:var(--teal); font-family:var(--mono); font-size:12px;
+    display:flex; align-items:center; justify-content:center; font-weight:600; z-index:1;
+  }
+  .stepper-content{flex:1; min-width:0; padding-top:3px;}
+  .stepper-content h3{margin:0 0 6px 0; font-size:15px; font-weight:600; color:var(--text);}
+  .stepper-content p{margin:0 0 10px 0; font-size:13.5px; color:var(--text-dim);}
+  .stepper-content .why{
+    font-size:12.5px; color:var(--text-dimmer); font-style:italic; margin-top:8px;
+  }
+  .checklist{list-style:none; padding:0; margin:14px 0;}
+  .checklist li{
+    display:flex; align-items:flex-start; gap:10px; padding:9px 0; border-bottom:1px solid var(--border-soft);
+    font-size:13.5px; color:var(--text-dim);
+  }
+  .checklist li:last-child{border-bottom:none;}
+  .checklist li::before{
+    content:'☐'; color:var(--teal); font-size:14px; flex:0 0 auto; line-height:1.4;
+  }
+  .checklist li b{color:var(--text); font-weight:500;}
+
+  /* tab panels */
+  .tabpanel{display:none;}
+  .tabpanel.active{display:block;}
+
+  /* mobile */
+  .mobile-toggle{display:none;}
+  @media (max-width:900px){
+    .sidebar{
+      position:fixed; left:0; top:0; height:100vh; transform:translateX(-100%);
+      transition:transform .2s ease; box-shadow:20px 0 40px rgba(0,0,0,0.4);
+    }
+    .sidebar.open{transform:translateX(0);}
+    .mobile-toggle{
+      display:flex; align-items:center; gap:8px; position:fixed; bottom:20px; right:20px; z-index:30;
+      background:var(--teal); color:#062521; font-family:var(--mono); font-size:12px; font-weight:600;
+      border:none; padding:11px 16px; border-radius:24px; cursor:pointer; box-shadow:0 6px 20px rgba(73,197,177,0.35);
+    }
+    .hero{padding:50px 20px 34px 20px;}
+    .content-wrap{padding:0 18px 80px 18px;}
+    .layers{transform:scale(0.62); transform-origin:left top; height:130px;}
+    .kv-grid{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar" id="sidebar">
+    <div class="brand">
+      <span class="tag">Field Notes / VPN Transport</span>
+      <h1>WSTunnel ⤳ WireGuard</h1>
+      <div class="sub">HTTPS-encapsulated VPN, end to end</div>
+    </div>
+
+    <div class="tabbar">
+      <button class="tabbtn active" data-tab="overview">Overview</button>
+      <button class="tabbtn" data-tab="setup">Setup Guide</button>
+      <button class="tabbtn" data-tab="phase1">Phase 1</button>
+      <button class="tabbtn" data-tab="phase2">Phase 2</button>
+    </div>
+
+    <div class="toc">
+      <div class="toc-group active" data-tocgroup="overview">
+        <a href="#ov-objective"><span class="toc-num">01</span>Objective</a>
+        <a href="#ov-problem"><span class="toc-num">02</span>Problem statement</a>
+        <a href="#ov-architecture"><span class="toc-num">03</span>Solution architecture</a>
+        <a href="#ov-infra"><span class="toc-num">04</span>Infrastructure</a>
+        <a href="#ov-addressing"><span class="toc-num">05</span>VPN addressing</a>
+        <a href="#ov-server"><span class="toc-num">06</span>Server configuration</a>
+        <a href="#ov-client"><span class="toc-num">07</span>Client configuration</a>
+        <a href="#ov-routing"><span class="toc-num">08</span>Routing configuration</a>
+        <a href="#ov-firewall"><span class="toc-num">09</span>Firewall configuration</a>
+        <a href="#ov-windows"><span class="toc-num">10</span>Windows client</a>
+        <a href="#ov-troubleshoot"><span class="toc-num">11</span>Troubleshooting</a>
+        <a href="#ov-validation"><span class="toc-num">12</span>Validation</a>
+        <a href="#ov-flow"><span class="toc-num">13</span>Final flow</a>
+        <a href="#ov-findings"><span class="toc-num">14</span>Key findings</a>
+      </div>
+      <div class="toc-group" data-tocgroup="setup">
+        <a href="#sg-prereqs"><span class="toc-num">—</span>Prerequisites</a>
+        <a href="#sg-server-1"><span class="toc-num">S1</span>Confirm WireGuard is up</a>
+        <a href="#sg-server-2"><span class="toc-num">S2</span>Free up port 443</a>
+        <a href="#sg-server-3"><span class="toc-num">S3</span>Install WSTunnel (server)</a>
+        <a href="#sg-server-4"><span class="toc-num">S4</span>Test the server, then open the firewall</a>
+        <a href="#sg-server-5"><span class="toc-num">S5</span>Run WSTunnel as a service</a>
+        <a href="#sg-linux-1"><span class="toc-num">L1</span>Install WSTunnel (Linux client)</a>
+        <a href="#sg-linux-2"><span class="toc-num">L2</span>Point WireGuard at localhost</a>
+        <a href="#sg-linux-3"><span class="toc-num">L3</span>Fix the routing loop</a>
+        <a href="#sg-linux-4"><span class="toc-num">L4</span>Run the client as a service</a>
+        <a href="#sg-linux-5"><span class="toc-num">L5</span>Bring up the VPN and verify</a>
+        <a href="#sg-win-1"><span class="toc-num">W1</span>Windows: install components</a>
+        <a href="#sg-win-2"><span class="toc-num">W2</span>Windows: configure &amp; run as a service</a>
+        <a href="#sg-checklist"><span class="toc-num">✓</span>End-to-end checklist</a>
+      </div>
+      <div class="toc-group" data-tocgroup="phase1">
+        <a href="#p1-objective"><span class="toc-num">01</span>Objective</a>
+        <a href="#p1-infra"><span class="toc-num">02</span>Existing infrastructure</a>
+        <a href="#p1-verify-wg"><span class="toc-num">03</span>Verify existing WireGuard</a>
+        <a href="#p1-verify-https"><span class="toc-num">04</span>Verify HTTPS availability</a>
+        <a href="#p1-dns"><span class="toc-num">05</span>DNS issue</a>
+        <a href="#p1-install"><span class="toc-num">06</span>Install WSTunnel</a>
+        <a href="#p1-options"><span class="toc-num">07</span>Study WSTunnel options</a>
+        <a href="#p1-start"><span class="toc-num">08</span>Start WSTunnel server</a>
+        <a href="#p1-verify-server"><span class="toc-num">09</span>Verify WSTunnel server</a>
+        <a href="#p1-external"><span class="toc-num">10</span>External HTTPS check</a>
+        <a href="#p1-nft"><span class="toc-num">11</span>nftables investigation</a>
+        <a href="#p1-fwmod"><span class="toc-num">12</span>Firewall modification</a>
+        <a href="#p1-service"><span class="toc-num">13</span>Convert to service</a>
+        <a href="#p1-validate"><span class="toc-num">14</span>Validation</a>
+        <a href="#p1-summary"><span class="toc-num">—</span>Phase summary</a>
+      </div>
+      <div class="toc-group" data-tocgroup="phase2">
+        <a href="#p2-objective"><span class="toc-num">01</span>Objective</a>
+        <a href="#p2-env"><span class="toc-num">02</span>Client environment</a>
+        <a href="#p2-install"><span class="toc-num">03</span>Install WSTunnel</a>
+        <a href="#p2-configwg"><span class="toc-num">04</span>Configure WireGuard</a>
+        <a href="#p2-startclient"><span class="toc-num">05</span>Start WSTunnel client</a>
+        <a href="#p2-verify"><span class="toc-num">06</span>Verify WSTunnel</a>
+        <a href="#p2-service"><span class="toc-num">07</span>Configure as service</a>
+        <a href="#p2-startwg"><span class="toc-num">08</span>Start WireGuard</a>
+        <a href="#p2-trouble"><span class="toc-num">09</span>Initial troubleshooting</a>
+        <a href="#p2-checkhttps"><span class="toc-num">10</span>Verify HTTPS connectivity</a>
+        <a href="#p2-loop"><span class="toc-num">11</span>Routing problem</a>
+        <a href="#p2-investigate"><span class="toc-num">12</span>Investigation</a>
+        <a href="#p2-solution"><span class="toc-num">13</span>Solution: static route</a>
+        <a href="#p2-integrate"><span class="toc-num">14</span>Integrate with WireGuard</a>
+        <a href="#p2-restart"><span class="toc-num">15</span>Restart VPN</a>
+        <a href="#p2-verifywg"><span class="toc-num">16</span>Verify WireGuard</a>
+        <a href="#p2-verifycomm"><span class="toc-num">17</span>Verify communication</a>
+        <a href="#p2-final"><span class="toc-num">18</span>Final client architecture</a>
+        <a href="#p2-commands"><span class="toc-num">19</span>Validation commands</a>
+        <a href="#p2-findings"><span class="toc-num">20</span>Key findings</a>
+      </div>
+    </div>
+
+    <div class="sidebar-foot">wstunnel v10.6.2 · Ubuntu 22.04 LTS · AWS EC2</div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <header class="hero">
+      <div class="hero-inner">
+        <div class="eyebrow">Implementation Report</div>
+        <h1>Tunneling WireGuard through a firewall<br>that only trusts <span class="accent">port 443</span></h1>
+        <p class="lede">The org firewall blocked UDP/51820 and ICMP outright, so on-prem machines could never reach the AWS WireGuard server directly. WSTunnel wraps the WireGuard UDP stream inside a WebSocket-over-TLS connection — traffic the firewall already lets through — and hands it back to WireGuard on the other side.</p>
+
+        <div class="badges">
+          <span class="badge">Transport: <b>WebSocket / TLS / TCP 443</b></span>
+          <span class="badge">Payload: <b>WireGuard UDP 51820</b></span>
+          <span class="badge">Server: <b>AWS EC2 · 13.205.137.92</b></span>
+          <span class="badge">Clients: <b>Ubuntu + Windows Server</b></span>
+          <span class="badge">Blocked: <b>UDP/51820, ICMP</b></span>
+        </div>
+
+        <div class="layers" aria-hidden="true">
+          <div class="layer l1"><span>TCP 443 — reaches the firewall</span></div>
+          <div class="layer l2"><span>WSS — WebSocket over TLS</span></div>
+          <div class="layer l3"><span>WSTunnel — forwards UDP payload</span></div>
+          <div class="layer l4"><span>WireGuard — UDP 51820</span></div>
+        </div>
+        <div class="layers-caption"><span>outer: what the firewall sees</span><span>inner: what actually gets carried</span></div>
+      </div>
+    </header>
+
+    <div class="content-wrap">
+
+      <!-- ===================== OVERVIEW TAB ===================== -->
+      <div class="tabpanel active" id="tab-overview">
+
+        <section class="block" id="ov-objective">
+          <div class="block-head"><span class="idx">01</span><h2>Objective</h2></div>
+          <p class="block-desc">The organization firewall blocked native WireGuard UDP (51820) traffic, preventing on-premises virtual machines from connecting to the AWS VPN server. WSTunnel was implemented to encapsulate WireGuard UDP packets inside WebSocket over HTTPS (TCP 443), letting VPN traffic traverse restrictive firewalls while keeping the connection encrypted end to end.</p>
+        </section>
+
+        <section class="block" id="ov-problem">
+          <div class="block-head"><span class="idx">02</span><h2>Problem statement</h2></div>
+          <p class="block-desc">Existing VPN architecture, before WSTunnel:</p>
+<div class="diagram">Client
+  │
+  <span class="hi2">WireGuard (UDP 51820)</span>
+  │
+  Internet
+  │
+  AWS VPN Server</div>
+          <div class="kv-grid">
+            <div class="kv"><div class="k">Firewall blocked</div><div class="v">UDP/51820, ICMP</div></div>
+            <div class="kv"><div class="k">Result</div><div class="v">VPN tunnel could not establish</div></div>
+            <div class="kv"><div class="k">Admin control</div><div class="v">None over org firewall</div></div>
+            <div class="kv"><div class="k">Requirement</div><div class="v">Encapsulate VPN inside HTTPS</div></div>
+          </div>
+        </section>
+
+        <section class="block" id="ov-architecture">
+          <div class="block-head"><span class="idx">03</span><h2>Solution architecture</h2></div>
+          <p class="block-desc">Server side — WSTunnel terminates the WebSocket/TLS connection on EC2 and hands the decoded UDP stream to the local WireGuard server:</p>
+<div class="diagram">Internet
+  │
+  <span class="hi">HTTPS (TCP 443)</span>
+  │
+  ┌────────────────────┐
+  │  AWS EC2            │
+  │  WSTunnel Server     │
+  └────────────────────┘
+  │
+  localhost:51820
+  │
+  WireGuard Server
+  │
+  ┌───────────────┬───────────────┬───────────────┐
+192.168.100.x   192.168.150.x   192.168.200.x</div>
+          <p class="block-desc">Client side — WireGuard never talks to AWS directly; it talks to WSTunnel on localhost, which does the real network hop:</p>
+<div class="diagram">WireGuard Client
+  │
+  localhost:51820
+  │
+  <span class="hi">WSTunnel Client</span>
+  │
+  HTTPS (443)
+  │
+  AWS EC2</div>
+        </section>
+
+        <section class="block" id="ov-infra">
+          <div class="block-head"><span class="idx">04</span><h2>Infrastructure</h2></div>
+          <p class="block-desc">AWS EC2 VPN server:</p>
+          <table>
+            <tr><th>Component</th><th>Configuration</th></tr>
+            <tr><td class="k">OS</td><td>Ubuntu</td></tr>
+            <tr><td class="k">Public IP</td><td>13.205.137.92</td></tr>
+            <tr><td class="k">WSTunnel</td><td>Server mode</td></tr>
+            <tr><td class="k">WireGuard</td><td>Server</td></tr>
+            <tr><td class="k">HTTPS port</td><td>TCP 443</td></tr>
+            <tr><td class="k">VPN port</td><td>UDP 51820</td></tr>
+            <tr><td class="k">Firewall</td><td>nftables</td></tr>
+          </table>
+          <p class="block-desc">Client, implemented on Ubuntu Linux and Windows Server, each running a WireGuard client + WSTunnel client pair.</p>
+        </section>
+
+        <section class="block" id="ov-addressing">
+          <div class="block-head"><span class="idx">05</span><h2>VPN addressing</h2></div>
+          <p class="block-desc">VPN server networks: <span class="mono">192.168.100.1/24</span>, <span class="mono">192.168.150.1/24</span>, <span class="mono">192.168.200.1/24</span>.</p>
+          <table>
+            <tr><th>Client</th><th>VPN IP</th></tr>
+            <tr><td>Web Server</td><td class="k">192.168.100.10</td></tr>
+            <tr><td>Web Server-2</td><td class="k">192.168.100.50</td></tr>
+            <tr><td>Honeypot</td><td class="k">192.168.100.100</td></tr>
+            <tr><td>Service VM</td><td class="k">192.168.100.200</td></tr>
+            <tr><td>MISP</td><td class="k">192.168.150.10</td></tr>
+            <tr><td>SOC Core</td><td class="k">192.168.150.20</td></tr>
+            <tr><td>IDS</td><td class="k">192.168.150.30</td></tr>
+            <tr><td>AD-DS</td><td class="k">192.168.150.40</td></tr>
+          </table>
+        </section>
+
+        <section class="block" id="ov-server">
+          <div class="block-head"><span class="idx">06</span><h2>Server configuration</h2></div>
+          <p class="block-desc"><strong>WireGuard</strong> — interface <span class="mono">wg0</span>, listening on UDP 51820, bound to 192.168.100.1/24, 192.168.150.1/24, 192.168.200.1/24. Each VPN client is a peer keyed by its public key with a /32 AllowedIPs entry.</p>
+          <p class="block-desc"><strong>WSTunnel server</strong> — installed as a systemd service:</p>
+          <div class="codeblock"><button class="copy-btn">copy</button><pre>wstunnel server \
+  --restrict-to localhost:51820 \
+  wss://0.0.0.0:443</pre></div>
+          <div class="callout">Listens on HTTPS 443, accepts WebSocket connections, forwards decrypted UDP packets to the local WireGuard server only.</div>
+        </section>
+
+        <section class="block" id="ov-client">
+          <div class="block-head"><span class="idx">07</span><h2>Client configuration</h2></div>
+          <p class="block-desc"><strong>WireGuard endpoint</strong> is set to <span class="mono">127.0.0.1:51820</span> — WireGuard talks locally to WSTunnel instead of directly to AWS.</p>
+          <div class="codeblock"><button class="copy-btn">copy</button><pre>wstunnel client \
+  -L udp://51820:localhost:51820?timeout_sec=0 \
+  wss://13.205.137.92:443</pre></div>
+<div class="diagram">WireGuard
+  │
+  localhost:51820
+  │
+  <span class="hi">WSTunnel</span>
+  │
+  HTTPS 443
+  │
+  AWS</div>
+        </section>
+
+        <section class="block" id="ov-routing">
+          <div class="block-head"><span class="idx">08</span><h2>Routing configuration</h2></div>
+          <p class="block-desc"><strong>Initially:</strong> <span class="mono">AllowedIPs = 0.0.0.0/0</span> routed the entire system into the VPN — including WSTunnel's own HTTPS packets, which then tried to traverse the very tunnel they were responsible for establishing. Routing loop, connection timeouts.</p>
+          <p class="block-desc"><strong>Fix:</strong> add a static route for the AWS endpoint before bringing WireGuard up, so it bypasses the tunnel:</p>
+          <div class="codeblock"><button class="copy-btn">copy</button><pre>ip route add 13.205.137.92/32 via &lt;physical_gateway&gt; dev &lt;physical_interface&gt;</pre></div>
+          <div class="callout">Result: traffic to the AWS public IP goes out the physical interface directly; everything else still rides the VPN.</div>
+        </section>
+
+        <section class="block" id="ov-firewall">
+          <div class="block-head"><span class="idx">09</span><h2>Firewall configuration</h2></div>
+          <p class="block-desc">AWS security group — allowed inbound:</p>
+          <table>
+            <tr><th>Protocol</th><th>Port</th></tr>
+            <tr><td>SSH</td><td class="k">22</td></tr>
+            <tr><td>HTTPS</td><td class="k">443</td></tr>
+            <tr><td>WireGuard UDP</td><td class="k">51820</td></tr>
+            <tr><td>HTTP</td><td class="k">80</td></tr>
+          </table>
+          <p class="block-desc">nftables (host firewall) permits SSH, ICMP, WireGuard UDP, WSTunnel HTTPS, VPN forwarding, and NAT masquerading. The HTTPS rule was only added after discovering inbound TCP 443 was being silently dropped at the host level, despite the security group already allowing it.</p>
+        </section>
+
+        <section class="block" id="ov-windows">
+          <div class="block-head"><span class="idx">10</span><h2>Windows client implementation</h2></div>
+          <p class="block-desc">Components: WireGuard for Windows, WSTunnel, and NSSM as the service manager.</p>
+          <div class="callout warn"><b>Initial issue —</b> WSTunnel failed to start: <span class="mono">VCRUNTIME140.dll missing</span>. Resolved by installing the Microsoft Visual C++ Redistributable (2015–2022 x64).</div>
+          <p class="block-desc">NSSM service, created to launch WSTunnel automatically at startup:</p>
+          <div class="codeblock"><button class="copy-btn">copy</button><pre>wstunnel.exe client \
+  -L udp://51820:localhost:51820?timeout_sec=0 \
+  wss://13.205.137.92:443</pre></div>
+        </section>
+
+        <section class="block" id="ov-troubleshoot">
+          <div class="block-head"><span class="idx">11</span><h2>Troubleshooting summary</h2></div>
+          <p class="block-desc">Every issue hit during rollout, its root cause, and the fix. Filter as needed.</p>
+          <div class="search-wrap"><input type="text" id="tsSearch" placeholder="Filter issues — try &quot;routing&quot;, &quot;dll&quot;, &quot;nftables&quot;…"></div>
+          <table id="tsTable">
+            <tr><th>Issue</th><th>Root cause</th><th>Resolution</th></tr>
+            <tr><td>WSTunnel TCP timeout</td><td>TCP 443 blocked by nftables</td><td>Allowed HTTPS traffic</td></tr>
+            <tr><td>curl to public IP timed out</td><td>Firewall blocking HTTPS</td><td>Updated nftables</td></tr>
+            <tr><td>Invalid request from curl</td><td>HTTP request sent instead of WebSocket upgrade</td><td>Expected behavior; confirmed server reachable</td></tr>
+            <tr><td>WSTunnel connection timeout</td><td>HTTPS routed into VPN (AllowedIPs=0.0.0.0/0)</td><td>Added static route for AWS public IP</td></tr>
+            <tr><td>Server rejected destination</td><td>--restrict-to configuration mismatch</td><td>Corrected server restriction to localhost:51820</td></tr>
+            <tr><td>Windows WSTunnel service failed</td><td>Missing Visual C++ runtime</td><td>Installed VC++ Redistributable</td></tr>
+            <tr><td>NSSM service misconfiguration</td><td>Service created without proper arguments</td><td>Recreated service with correct client command</td></tr>
+            <tr><td>WireGuard handshake absent</td><td>WSTunnel transport unavailable</td><td>Resolved after HTTPS connectivity + routing fixes</td></tr>
+          </table>
+          <p class="no-match" id="tsNoMatch">No matching issues.</p>
+        </section>
+
+        <section class="block" id="ov-validation">
+          <div class="block-head"><span class="idx">12</span><h2>Validation performed</h2></div>
+          <div class="kv-grid">
+            <div class="kv"><div class="k">Server</div><div class="v" style="font-size:12.5px; line-height:1.7;">WSTunnel service status · WireGuard interface up · ports 443/51820 listening · nftables rules · HTTPS local + public</div></div>
+            <div class="kv"><div class="k">Client</div><div class="v" style="font-size:12.5px; line-height:1.7;">WSTunnel service started · HTTPS reachable to AWS · WireGuard handshake confirmed · VPN IP assigned · inter-VPN traffic tested</div></div>
+          </div>
+        </section>
+
+        <section class="block" id="ov-flow">
+          <div class="block-head"><span class="idx">13</span><h2>Final communication flow</h2></div>
+<div class="diagram">Application
+  │
+  WireGuard Client
+  │
+  127.0.0.1:51820 (UDP)
+  │
+  <span class="hi">WSTunnel Client</span>
+  │
+  WebSocket over TLS · TCP 443
+  │
+  Internet
+  │
+  AWS EC2
+  │
+  <span class="hi">WSTunnel Server</span>
+  │
+  localhost:51820 (UDP)
+  │
+  WireGuard Server
+  │
+  VPN Network
+  192.168.100.0/24 · 192.168.150.0/24 · 192.168.200.0/24</div>
+        </section>
+
+        <section class="block" id="ov-findings">
+          <div class="block-head"><span class="idx">14</span><h2>Key findings</h2></div>
+          <ul class="findings">
+            <li>WSTunnel effectively bypassed the organizational UDP restriction by tunneling WireGuard traffic through HTTPS (TCP 443).</li>
+            <li>A full-tunnel WireGuard config (<span class="mono">AllowedIPs = 0.0.0.0/0</span>) introduced a routing loop that stopped WSTunnel reaching AWS; a static host route resolved it.</li>
+            <li>The server's <span class="mono">--restrict-to</span> option must explicitly name the local UDP destination (<span class="mono">localhost:51820</span>) or forwarding to WireGuard won't happen.</li>
+            <li><span class="mono">curl</span> returning "Invalid request" confirmed the HTTPS listener was reachable — it doesn't validate WSTunnel itself, since WSTunnel needs a WebSocket upgrade, not a plain GET.</li>
+            <li>On Windows, the Microsoft Visual C++ Runtime is a hard dependency for <span class="mono">wstunnel.exe</span>.</li>
+            <li>Running WSTunnel as a persistent service (systemd / NSSM) ensured automatic startup and reliable operation on both platforms.</li>
+            <li>End state: Linux and Windows clients join the private VPN over TCP 443 with no WireGuard UDP ever exposed to the internet.</li>
+          </ul>
+        </section>
+
+      </div>
+
+      <!-- ===================== SETUP GUIDE TAB ===================== -->
+      <div class="tabpanel" id="tab-setup">
+        <section class="block" style="padding-top:44px; border-bottom:none;">
+          <div class="block-head"><span class="idx">→</span><h2>Step-by-step implementation</h2></div>
+          <p class="block-desc">A straight-through build order — server first, then Linux client, then Windows client. Each step is what to run and why it matters; skip to <a href="#sg-checklist">the checklist</a> if you just need to confirm a working setup.</p>
+
+          <div class="kv-grid" id="sg-prereqs">
+            <div class="kv"><div class="k">Before you start</div><div class="v" style="font-size:12.5px; line-height:1.7;">A working WireGuard VPN already deployed on the EC2 host (wg0, UDP 51820) · root/sudo on server and clients · AWS security group open on 443 · WSTunnel v10.6.2 release binary</div></div>
+            <div class="kv"><div class="k">You will change</div><div class="v" style="font-size:12.5px; line-height:1.7;">nftables (open 443) · WireGuard client Endpoint (→ 127.0.0.1) · client routing table (static host route) · two new systemd/NSSM services</div></div>
+          </div>
+
+          <div class="stage-label" id="sg-server"><span>Stage A — AWS EC2 server</span><span class="n">5 steps</span></div>
+          <div class="stepper">
+
+            <div class="stepper-item" id="sg-server-1">
+              <div class="stepper-num">S1</div>
+              <div class="stepper-content">
+                <h3>Confirm WireGuard is already up</h3>
+                <p>Don't touch WSTunnel until the base VPN is verified healthy.</p>
+                <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo wg show
+<span class="c-comment"># expect: interface wg0, listening port 51820, peers listed</span></pre></div>
+                <div class="why">Why: if WireGuard itself is broken, layering a tunnel on top only hides the real problem.</div>
+              </div>
+            </div>
+
+            <div class="stepper-item" id="sg-server-2">
+              <div class="stepper-num">S2</div>
+              <div class="stepper-content">
+                <h3>Free up port 443</h3>
+                <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo ss -tlnp | grep :443
+<span class="c-comment"># expect: no output</span></pre></div>
+                <p>If downloading the release hits <span class="mono">Temporary failure in name resolution</span>, WireGuard's own DNS config is likely interfering — drop the interface, fetch the binary, then continue:</p>
+                <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo wg-quick down wg0
+dig www.google.com   <span class="c-comment"># confirm DNS works again</span></pre></div>
+              </div>
+            </div>
+
+            <div class="stepper-item" id="sg-server-3">
+              <div class="stepper-num">S3</div>
+              <div class="stepper-content">
+                <h3>Install WSTunnel</h3>
+                <div class="codeblock"><button class="copy-btn">copy</button><pre>cd /tmp
+wget https://github.com/erebe/wstunnel/releases/download/v10.6.2/wstunnel_10.6.2_linux_amd64.tar.gz
+tar -xzf wstunnel_10.6.2_linux_amd64.tar.gz
+sudo mv wstunnel /usr/local/bin/
+sudo chmod +x /usr/local/bin/wstunnel
+wstunnel --version   <span class="c-comment"># wstunnel-cli 10.6.2</span></pre></div>
+                <div class="why">Why pin v10.6.2: GitHub's "latest" redirect can point past a filename you already have cached — verify the real tag first with the GitHub API if <span class="mono">wget</span> 404s.</div>
+              </div>
+            </div>
+
+            <div class="stepper-item" id="sg-server-4">
+              <div class="stepper-num">S4</div>
+              <div class="stepper-content">
+                <h3>Test the server, then open the firewall</h3>
+                <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo wstunnel server \
+  --restrict-to localhost:51820 \
+  wss://0.0.0.0:443</pre></div>
+                <p>A local <span class="mono">curl -vk https://127.0.0.1:443</span> returning <span class="mono">HTTP/2 400 Invalid request</span> means it's working — WSTunnel rejects plain GETs by design. If a remote <span class="mono">curl</span> from off-box times out, check nftables, not just the AWS security group:</p>
+                <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo nft list ruleset            <span class="c-comment"># look for policy drop + missing tcp/443</span>
+sudo nft add rule inet filter input tcp dport 443 accept</pre></div>
+              </div>
+            </div>
+
+            <div class="stepper-item" id="sg-server-5">
+              <div class="stepper-num">S5</div>
+              <div class="stepper-content">
+                <h3>Run it as a service</h3>
+                <p>Stop the foreground process (Ctrl-C) and create <span class="mono">/etc/systemd/system/wstunnel.service</span>:</p>
+                <div class="codeblock"><button class="copy-btn">copy</button><pre>[Unit]
+Description=WSTunnel Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/wstunnel server \
+  --restrict-to localhost:51820 \
+  wss://0.0.0.0:443
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target</pre></div>
+                <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo systemctl daemon-reload
+sudo systemctl enable --now wstunnel
+sudo systemctl status wstunnel      <span class="c-comment"># Active: active (running)</span>
+sudo journalctl -u wstunnel         <span class="c-comment"># Listening on 0.0.0.0:443 · Server ready.</span></pre></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stage-label" id="sg-linux"><span>Stage B — Linux client</span><span class="n">5 steps</span></div>
+          <div class="stepper">
+
+            <div class="stepper-item" id="sg-linux-1">
+              <div class="stepper-num">L1</div>
+              <div class="stepper-content">
+                <h3>Install WSTunnel</h3>
+                <div class="codeblock"><button class="copy-btn">copy</button><pre>uname -m && cat /etc/os-release
+cd /tmp
+wget https://github.com/erebe/wstunnel/releases/download/v10.6.2/wstunnel_10.6.2_linux_amd64.tar.gz
+tar -xzf wstunnel_10.6.2_linux_amd64.tar.gz
+sudo mv wstunnel /usr/local/bin/
+sudo chmod +x /usr/local/bin/wstunnel</pre></div>
+              </div>
+            </div>
+
+            <div class="stepper-item" id="sg-linux-2">
+              <div class="stepper-num">L2</div>
+              <div class="stepper-content">
+                <h3>Point WireGuard at localhost, start WSTunnel client</h3>
+                <p>In the client's WireGuard config, change <span class="mono">Endpoint = 13.205.137.92:51820</span> to <span class="mono">Endpoint = 127.0.0.1:51820</span>. Then, before bringing WireGuard up, start the tunnel:</p>
+                <div class="codeblock"><button class="copy-btn">copy</button><pre>wstunnel client \
+  -L udp://51820:127.0.0.1:51820?timeout_sec=0 \
+  wss://13.205.137.92:443</pre></div>
+                <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo ss -lunp | grep 51820   <span class="c-comment"># expect 127.0.0.1:51820, process wstunnel</span></pre></div>
+              </div>
+            </div>
+
+            <div class="stepper-item" id="sg-linux-3">
+              <div class="stepper-num">L3</div>
+              <div class="stepper-content">
+                <h3>Fix the routing loop before going full-tunnel</h3>
+                <p>If the peer's <span class="mono">AllowedIPs = 0.0.0.0/0</span>, WSTunnel's own HTTPS traffic will try to ride the VPN it's building. Add a static host route for the AWS IP through the physical interface first:</p>
+                <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo ip route add 13.205.137.92/32 via &lt;physical_gateway&gt; dev &lt;physical_interface&gt;
+<span class="c-comment"># e.g. sudo ip route add 13.205.137.92/32 via 192.168.74.254 dev ens33</span></pre></div>
+                <p>Persist it so it survives every WireGuard restart — add to <span class="mono">wg0.conf</span>:</p>
+                <div class="codeblock"><button class="copy-btn">copy</button><pre>PostUp = ip route add 13.205.137.92/32 via 192.168.74.254 dev ens33
+PostDown = ip route del 13.205.137.92/32 via 192.168.74.254 dev ens33</pre></div>
+                <div class="why">Why this order matters: do this before the first <span class="mono">wg-quick up</span> with a full-tunnel config, or you'll chase a "0 B received" handshake failure that's actually a routing loop, not a WireGuard problem.</div>
+              </div>
+            </div>
+
+            <div class="stepper-item" id="sg-linux-4">
+              <div class="stepper-num">L4</div>
+              <div class="stepper-content">
+                <h3>Run the client as a service</h3>
+                <p><span class="mono">/etc/systemd/system/wstunnel.service</span>:</p>
+                <div class="codeblock"><button class="copy-btn">copy</button><pre>[Unit]
+Description=WSTunnel Client
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/wstunnel client \
+  -L udp://51820:127.0.0.1:51820?timeout_sec=0 \
+  wss://13.205.137.92:443
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target</pre></div>
+                <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo systemctl daemon-reload
+sudo systemctl enable --now wstunnel</pre></div>
+              </div>
+            </div>
+
+            <div class="stepper-item" id="sg-linux-5">
+              <div class="stepper-num">L5</div>
+              <div class="stepper-content">
+                <h3>Bring up the VPN and verify</h3>
+                <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo wg-quick down wg0 && sudo wg-quick up wg0
+sudo wg show          <span class="c-comment"># latest handshake present, RX/TX both increasing</span>
+ping 192.168.100.1    <span class="c-comment"># successful</span></pre></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stage-label" id="sg-win"><span>Stage C — Windows client</span><span class="n">2 steps</span></div>
+          <div class="stepper">
+
+            <div class="stepper-item" id="sg-win-1">
+              <div class="stepper-num">W1</div>
+              <div class="stepper-content">
+                <h3>Install components</h3>
+                <p>Install WireGuard for Windows, <span class="mono">wstunnel.exe</span>, and NSSM. If WSTunnel fails to launch with <span class="mono">VCRUNTIME140.dll missing</span>, install the <strong>Microsoft Visual C++ Redistributable (2015–2022 x64)</strong> — it's a hard dependency, not optional.</p>
+                <p>In the WireGuard tunnel config, set <span class="mono">Endpoint = 127.0.0.1:51820</span>, same as the Linux client.</p>
+              </div>
+            </div>
+
+            <div class="stepper-item" id="sg-win-2">
+              <div class="stepper-num">W2</div>
+              <div class="stepper-content">
+                <h3>Configure &amp; run as a service</h3>
+                <p>Use NSSM to register the client so it starts automatically:</p>
+                <div class="codeblock"><button class="copy-btn">copy</button><pre>wstunnel.exe client \
+  -L udp://51820:localhost:51820?timeout_sec=0 \
+  wss://13.205.137.92:443</pre></div>
+                <p>Point the NSSM service's Application/Arguments fields at that exact command, then start the service and activate the WireGuard tunnel.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="stage-label" id="sg-checklist"><span>End-to-end checklist</span><span class="n">verify the build</span></div>
+          <ul class="checklist">
+            <li><b>Server:</b> <span class="mono">systemctl status wstunnel</span> is active, <span class="mono">ss -tlnp</span> shows 443 listening, <span class="mono">wg show</span> shows the interface up.</li>
+            <li><b>Firewall:</b> nftables allows tcp/443 inbound; AWS security group allows 443, 51820, 22, 80.</li>
+            <li><b>Client transport:</b> <span class="mono">nc -vz &lt;server-ip&gt; 443</span> succeeds; <span class="mono">ss -lunp | grep 51820</span> shows WSTunnel bound to localhost.</li>
+            <li><b>Routing:</b> a static <span class="mono">/32</span> route to the server's public IP exists via the physical interface, persisted through <span class="mono">PostUp</span>/<span class="mono">PostDown</span>.</li>
+            <li><b>Handshake:</b> <span class="mono">wg show</span> on the client shows a recent handshake with both RX and TX increasing, not just TX.</li>
+            <li><b>Reachability:</b> <span class="mono">ping</span> to a VPN-side address (e.g. <span class="mono">192.168.100.1</span>) succeeds.</li>
+            <li><b>Persistence:</b> both server and client WSTunnel processes are registered services (systemd / NSSM), not foreground shells.</li>
+          </ul>
+        </section>
+      </div>
+
+      <!-- ===================== PHASE 1 TAB ===================== -->
+      <div class="tabpanel" id="tab-phase1">
+        <section class="block" style="padding-top:44px;">
+          <div class="block-desc" style="margin-bottom:28px;">Phase 1 covers preparation, verifying the existing VPN, installing WSTunnel on the AWS server, and turning it into a persistent service — before any client ever connects.</div>
+
+          <details class="step" id="p1-objective" open>
+            <summary><span class="chev">▸</span><span class="stepnum">01</span>Objective</summary>
+            <div class="step-body">
+              <p>The org firewall allowed only TCP 80, TCP 443, and SSH — UDP 51820 (WireGuard) was blocked. Rather than replace WireGuard, WSTunnel was placed between client and server so only the <em>transport</em> changed, not the VPN topology:</p>
+<div class="diagram">WireGuard
+  │
+  UDP localhost:51820
+  │
+  <span class="hi">WSTunnel</span>
+  │
+  HTTPS (TCP 443)
+  │
+  Internet
+  │
+  AWS EC2
+  │
+  <span class="hi">WSTunnel</span>
+  │
+  UDP localhost:51820
+  │
+  WireGuard Server</div>
+            </div>
+          </details>
+
+          <details class="step" id="p1-infra">
+            <summary><span class="chev">▸</span><span class="stepnum">02</span>Existing infrastructure</summary>
+            <div class="step-body">
+              <table>
+                <tr><th>Item</th><th>Value</th></tr>
+                <tr><td>OS</td><td class="k">Ubuntu 22.04 LTS</td></tr>
+                <tr><td>Public IP</td><td class="k">13.205.137.92</td></tr>
+                <tr><td>WireGuard interface</td><td class="k">wg0</td></tr>
+                <tr><td>WireGuard port</td><td class="k">UDP 51820</td></tr>
+                <tr><td>VPN networks</td><td class="k">192.168.100.0/24, 192.168.150.0/24, 192.168.200.0/24</td></tr>
+              </table>
+            </div>
+          </details>
+
+          <details class="step" id="p1-verify-wg">
+            <summary><span class="chev">▸</span><span class="stepnum">03</span>Verify existing WireGuard</summary>
+            <div class="step-body">
+              <p>Confirmed before touching anything: interface active, listening on UDP 51820, peers connected, routing operational. No config changes made at this stage.</p>
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo wg show</pre></div>
+              <p>Output confirmed <span class="mono">interface: wg0</span>, <span class="mono">listening port: 51820</span>, and all configured peers.</p>
+            </div>
+          </details>
+
+          <details class="step" id="p1-verify-https">
+            <summary><span class="chev">▸</span><span class="stepnum">04</span>Verify HTTPS port availability</summary>
+            <div class="step-body">
+              <p>WSTunnel needs to own TCP 443, so confirm nothing else is bound to it first:</p>
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo ss -tlnp | grep :443</pre></div>
+              <p>Expected: no output → port 443 is free.</p>
+            </div>
+          </details>
+
+          <details class="step" id="p1-dns">
+            <summary><span class="chev">▸</span><span class="stepnum">05</span>DNS issue encountered</summary>
+            <div class="step-body">
+              <p>While downloading WSTunnel: <span class="mono">wget https://github.com/...</span> failed with <em>Temporary failure in name resolution</em>.</p>
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>ping 8.8.8.8   <span class="c-comment"># worked — internet connectivity exists</span>
+cat /etc/resolv.conf</pre></div>
+              <p>Resolved by temporarily bringing WireGuard down:</p>
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo wg-quick down wg0
+dig www.google.com   <span class="c-comment"># successful</span></pre></div>
+              <div class="callout finding"><b>Finding —</b> WireGuard's DNS configuration was interfering with external name resolution during installation.</div>
+            </div>
+          </details>
+
+          <details class="step" id="p1-install">
+            <summary><span class="chev">▸</span><span class="stepnum">06</span>Install WSTunnel</summary>
+            <div class="step-body">
+              <p>First attempt hit a 404 — GitHub's "latest" release had moved to v10.6.2 while the filename still referenced 10.5.5:</p>
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>wget -qO- https://api.github.com/repos/erebe/wstunnel/releases/latest \
+  | grep browser_download_url</pre></div>
+              <p>Correct package identified: <span class="mono">wstunnel_10.6.2_linux_amd64.tar.gz</span></p>
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>cd /tmp
+wget https://github.com/erebe/wstunnel/releases/download/v10.6.2/wstunnel_10.6.2_linux_amd64.tar.gz
+tar -xzf wstunnel_10.6.2_linux_amd64.tar.gz
+sudo mv wstunnel /usr/local/bin/
+sudo chmod +x /usr/local/bin/wstunnel
+
+<span class="c-comment"># verify</span>
+wstunnel --version   <span class="c-comment"># wstunnel-cli 10.6.2</span></pre></div>
+            </div>
+          </details>
+
+          <details class="step" id="p1-options">
+            <summary><span class="chev">▸</span><span class="stepnum">07</span>Study WSTunnel options</summary>
+            <div class="step-body">
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>wstunnel server --help</pre></div>
+              <table>
+                <tr><th>Option</th><th>Purpose</th></tr>
+                <tr><td class="k">--restrict-to</td><td>Restrict destination forwarding</td></tr>
+                <tr><td class="k">--tls-certificate</td><td>Custom TLS certificate</td></tr>
+                <tr><td class="k">--tls-private-key</td><td>Private key</td></tr>
+                <tr><td class="k">--restrict-http-upgrade-path-prefix</td><td>Optional authentication path</td></tr>
+                <tr><td class="k">--dns-resolver</td><td>DNS configuration</td></tr>
+              </table>
+              <p>Decision: use the embedded self-signed certificate for the initial deployment.</p>
+            </div>
+          </details>
+
+          <details class="step" id="p1-start">
+            <summary><span class="chev">▸</span><span class="stepnum">08</span>Start WSTunnel server</summary>
+            <div class="step-body">
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo wstunnel server \
+  --restrict-to localhost:51820 \
+  wss://0.0.0.0:443</pre></div>
+              <p>Listens on HTTPS 443, accepts WebSocket clients, forwards UDP traffic only to the local WireGuard server.</p>
+            </div>
+          </details>
+
+          <details class="step" id="p1-verify-server">
+            <summary><span class="chev">▸</span><span class="stepnum">09</span>Verify WSTunnel server</summary>
+            <div class="step-body">
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo ss -tlnp | grep :443     <span class="c-comment"># expect: LISTEN 0.0.0.0:443</span>
+curl -vk https://127.0.0.1:443</pre></div>
+              <p>Response: <span class="mono">HTTP/2 400 Invalid request</span>.</p>
+              <div class="callout finding"><b>Not an error —</b> WSTunnel expects an <span class="mono">Upgrade: websocket</span> header. A plain HTTP GET is intentionally rejected. "Invalid request" confirms HTTPS is reachable, TLS is working, and WSTunnel is running.</div>
+            </div>
+          </details>
+
+          <details class="step" id="p1-external">
+            <summary><span class="chev">▸</span><span class="stepnum">10</span>External HTTPS verification</summary>
+            <div class="step-body">
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>curl -vk https://13.205.137.92:443</pre></div>
+              <p>Timed out. Investigation showed the AWS security group already permitted TCP 443 — so the block had to be the host firewall.</p>
+            </div>
+          </details>
+
+          <details class="step" id="p1-nft">
+            <summary><span class="chev">▸</span><span class="stepnum">11</span>nftables investigation</summary>
+            <div class="step-body">
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo nft list ruleset</pre></div>
+              <p>Input policy: <span class="mono">drop</span>. Allowed: SSH, ICMP, UDP 51820. Missing: TCP 443 — so HTTPS packets never reached WSTunnel.</p>
+            </div>
+          </details>
+
+          <details class="step" id="p1-fwmod">
+            <summary><span class="chev">▸</span><span class="stepnum">12</span>Firewall modification</summary>
+            <div class="step-body">
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo nft add rule inet filter input tcp dport 443 accept</pre></div>
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>curl -vk https://13.205.137.92:443   <span class="c-comment"># now: HTTP/2 400 Invalid request</span></pre></div>
+              <p>Server now reachable from the internet.</p>
+            </div>
+          </details>
+
+          <details class="step" id="p1-service">
+            <summary><span class="chev">▸</span><span class="stepnum">13</span>Convert WSTunnel into a service</summary>
+            <div class="step-body">
+              <p><span class="mono">/etc/systemd/system/wstunnel.service</span></p>
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>[Unit]
+Description=WSTunnel Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/wstunnel server \
+  --restrict-to localhost:51820 \
+  wss://0.0.0.0:443
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target</pre></div>
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo systemctl daemon-reload
+sudo systemctl enable wstunnel
+sudo systemctl start wstunnel
+sudo systemctl status wstunnel   <span class="c-comment"># expect: Active: active (running)</span></pre></div>
+            </div>
+          </details>
+
+          <details class="step" id="p1-validate">
+            <summary><span class="chev">▸</span><span class="stepnum">14</span>Validation</summary>
+            <div class="step-body">
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo journalctl -u wstunnel</pre></div>
+              <p>Confirmed log lines: <span class="mono">Starting WSTunnel Server</span> → <span class="mono">Listening on 0.0.0.0:443</span> → <span class="mono">Server ready.</span></p>
+            </div>
+          </details>
+
+          <div class="callout" id="p1-summary" style="margin-top:24px;">
+            <b>Phase 1 summary —</b> verified the existing WireGuard VPN, identified firewall restrictions, resolved the DNS issue during install, installed WSTunnel v10.6.2, studied server options, deployed the server, opened TCP 443 in nftables, validated the HTTPS listener, and wrapped it all in a persistent systemd service.
+          </div>
+          <ul class="findings" style="margin-top:12px;">
+            <li>WSTunnel doesn't replace WireGuard — it encapsulates WireGuard UDP inside WebSocket over HTTPS.</li>
+            <li>"HTTP/2 400 Invalid request" from curl is expected: WSTunnel wants a WebSocket upgrade, not a plain GET.</li>
+            <li>The AWS security group already allowed TCP 443 — the real blocker was the local nftables firewall.</li>
+            <li>Running WSTunnel as a systemd service guarantees automatic startup after reboot.</li>
+          </ul>
+        </section>
+      </div>
+
+      <!-- ===================== PHASE 2 TAB ===================== -->
+      <div class="tabpanel" id="tab-phase2">
+        <section class="block" style="padding-top:44px;">
+          <div class="block-desc" style="margin-bottom:28px;">Phase 2 covers the Linux client: installing WSTunnel, pointing WireGuard at localhost, chasing down a routing loop caused by full-tunnel <span class="mono">AllowedIPs</span>, and landing a clean handshake over HTTPS.</div>
+
+          <details class="step" id="p2-objective" open>
+            <summary><span class="chev">▸</span><span class="stepnum">01</span>Objective</summary>
+            <div class="step-body">
+              <p>Configure the Linux VPN client to connect to the AWS WSTunnel server over HTTPS, forward local WireGuard traffic through it, preserve the existing VPN architecture, and bypass the organizational firewall restriction.</p>
+            </div>
+          </details>
+
+          <details class="step" id="p2-env">
+            <summary><span class="chev">▸</span><span class="stepnum">02</span>Client environment</summary>
+            <div class="step-body">
+              <table>
+                <tr><th>Component</th><th>Value</th></tr>
+                <tr><td>OS</td><td class="k">Ubuntu 22.04 LTS</td></tr>
+                <tr><td>Host</td><td class="k">VM-SERVICES-01</td></tr>
+                <tr><td>VPN address</td><td class="k">192.168.100.10</td></tr>
+                <tr><td>AWS server</td><td class="k">13.205.137.92</td></tr>
+                <tr><td>WireGuard interface</td><td class="k">wg0</td></tr>
+              </table>
+            </div>
+          </details>
+
+          <details class="step" id="p2-install">
+            <summary><span class="chev">▸</span><span class="stepnum">03</span>Install WSTunnel</summary>
+            <div class="step-body">
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>uname -m              <span class="c-comment"># x86_64</span>
+cat /etc/os-release   <span class="c-comment"># Ubuntu 22.04 LTS</span>
+
+cd /tmp
+wget https://github.com/erebe/wstunnel/releases/download/v10.6.2/wstunnel_10.6.2_linux_amd64.tar.gz
+tar -xzf wstunnel_10.6.2_linux_amd64.tar.gz
+sudo mv wstunnel /usr/local/bin/
+sudo chmod +x /usr/local/bin/wstunnel
+
+wstunnel --version    <span class="c-comment"># wstunnel-cli 10.6.2</span></pre></div>
+            </div>
+          </details>
+
+          <details class="step" id="p2-configwg">
+            <summary><span class="chev">▸</span><span class="stepnum">04</span>Configure WireGuard</summary>
+            <div class="step-body">
+              <p>Original: <span class="mono">Endpoint = 13.205.137.92:51820</span> → Modified: <span class="mono">Endpoint = 127.0.0.1:51820</span>, since WireGuard no longer talks directly to AWS.</p>
+<div class="diagram">WireGuard
+  │
+  127.0.0.1:51820
+  │
+  <span class="hi">WSTunnel</span>
+  │
+  HTTPS
+  │
+  AWS</div>
+            </div>
+          </details>
+
+          <details class="step" id="p2-startclient">
+            <summary><span class="chev">▸</span><span class="stepnum">05</span>Start WSTunnel client</summary>
+            <div class="step-body">
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>wstunnel client \
+  -L udp://51820:127.0.0.1:51820?timeout_sec=0 \
+  wss://13.205.137.92:443</pre></div>
+              <table>
+                <tr><th>Option</th><th>Meaning</th></tr>
+                <tr><td class="k">client</td><td>Client mode</td></tr>
+                <tr><td class="k">-L</td><td>Local UDP forward</td></tr>
+                <tr><td class="k">udp://51820</td><td>Listen locally on UDP 51820</td></tr>
+                <tr><td class="k">127.0.0.1:51820</td><td>Forward to local WireGuard</td></tr>
+                <tr><td class="k">timeout_sec=0</td><td>Never time out the UDP session</td></tr>
+                <tr><td class="k">wss://…:443</td><td>Secure WebSocket transport</td></tr>
+              </table>
+            </div>
+          </details>
+
+          <details class="step" id="p2-verify">
+            <summary><span class="chev">▸</span><span class="stepnum">06</span>Verify WSTunnel</summary>
+            <div class="step-body">
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo ss -lunp | grep 51820   <span class="c-comment"># expect: 127.0.0.1:51820, process wstunnel</span></pre></div>
+            </div>
+          </details>
+
+          <details class="step" id="p2-service">
+            <summary><span class="chev">▸</span><span class="stepnum">07</span>Configure WSTunnel as a service</summary>
+            <div class="step-body">
+              <p><span class="mono">/etc/systemd/system/wstunnel.service</span></p>
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>[Unit]
+Description=WSTunnel Client
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/wstunnel client \
+  -L udp://51820:127.0.0.1:51820?timeout_sec=0 \
+  wss://13.205.137.92:443
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target</pre></div>
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo systemctl daemon-reload
+sudo systemctl enable wstunnel
+sudo systemctl start wstunnel
+sudo systemctl status wstunnel</pre></div>
+            </div>
+          </details>
+
+          <details class="step" id="p2-startwg">
+            <summary><span class="chev">▸</span><span class="stepnum">08</span>Start WireGuard</summary>
+            <div class="step-body">
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo wg-quick up wg0
+sudo wg show</pre></div>
+              <p>Initially: <span class="mono">0 B received</span> — packets only transmitted. Meaning: WireGuard was attempting to talk, but nothing came back.</p>
+            </div>
+          </details>
+
+          <details class="step" id="p2-trouble">
+            <summary><span class="chev">▸</span><span class="stepnum">09</span>Initial troubleshooting</summary>
+            <div class="step-body">
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo journalctl -u wstunnel -f</pre></div>
+              <p>Observed: <span class="mono">Opening TCP connection</span> → <span class="mono">Cannot connect</span> → <span class="mono">Timed out</span>. The HTTPS transport itself was failing.</p>
+            </div>
+          </details>
+
+          <details class="step" id="p2-checkhttps">
+            <summary><span class="chev">▸</span><span class="stepnum">10</span>Verify HTTPS connectivity</summary>
+            <div class="step-body">
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>nc -vz 13.205.137.92 443</pre></div>
+              <p>Initially timed out; later succeeded. Finding: the transport layer only became reachable once the server-side firewall corrections landed.</p>
+            </div>
+          </details>
+
+          <details class="step" id="p2-loop">
+            <summary><span class="chev">▸</span><span class="stepnum">11</span>Major routing problem</summary>
+            <div class="step-body">
+              <p>Client config had <span class="mono">AllowedIPs = 0.0.0.0/0</span> for full-tunnel VPN. Unexpected effect: WSTunnel's own HTTPS traffic got pulled into the VPN it was building —</p>
+<div class="diagram">WSTunnel
+  ↓
+  VPN
+  ↓
+  WSTunnel
+  ↓
+  VPN
+  ↓
+  <span class="hi2">infinite routing loop</span></div>
+              <p>Symptoms: HTTPS timeout, no handshake, bytes transmitted kept climbing while received stayed at zero.</p>
+            </div>
+          </details>
+
+          <details class="step" id="p2-investigate">
+            <summary><span class="chev">▸</span><span class="stepnum">12</span>Investigation</summary>
+            <div class="step-body">
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>ip route   <span class="c-comment"># default route now points into the VPN</span></pre></div>
+              <p>Confirmed by <span class="mono">nc -vz 13.205.137.92 443</span> succeeding only after bringing WireGuard down. Finding: WireGuard itself was causing the WSTunnel connectivity failure.</p>
+            </div>
+          </details>
+
+          <details class="step" id="p2-solution">
+            <summary><span class="chev">▸</span><span class="stepnum">13</span>Solution: static route</summary>
+            <div class="step-body">
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo ip route add 13.205.137.92/32 \
+  via &lt;physical_gateway&gt; \
+  dev &lt;physical_interface&gt;
+
+<span class="c-comment"># example</span>
+sudo ip route add 13.205.137.92/32 \
+  via 192.168.74.254 \
+  dev ens33</pre></div>
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>ip route   <span class="c-comment"># expect: 13.205.137.92 via 192.168.74.254</span></pre></div>
+<div class="diagram">AWS Server
+  ↓
+  <span class="hi">Physical NIC</span>   ← not WireGuard</div>
+            </div>
+          </details>
+
+          <details class="step" id="p2-integrate">
+            <summary><span class="chev">▸</span><span class="stepnum">14</span>Integrate with WireGuard</summary>
+            <div class="step-body">
+              <p>Added to <span class="mono">wg0.conf</span> so the route survives every restart:</p>
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>PostUp = ip route add 13.205.137.92/32 via 192.168.74.254 dev ens33
+PostDown = ip route del 13.205.137.92/32 via 192.168.74.254 dev ens33</pre></div>
+            </div>
+          </details>
+
+          <details class="step" id="p2-restart">
+            <summary><span class="chev">▸</span><span class="stepnum">15</span>Restart VPN</summary>
+            <div class="step-body">
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo wg-quick down wg0
+sudo wg-quick up wg0
+ip route   <span class="c-comment"># expect: default + 13.205.137.92 + VPN routes</span></pre></div>
+            </div>
+          </details>
+
+          <details class="step" id="p2-verifywg">
+            <summary><span class="chev">▸</span><span class="stepnum">16</span>Verify WireGuard</summary>
+            <div class="step-body">
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>sudo wg show</pre></div>
+              <p>Now: latest handshake present, RX and TX both increasing. Handshake successful.</p>
+            </div>
+          </details>
+
+          <details class="step" id="p2-verifycomm">
+            <summary><span class="chev">▸</span><span class="stepnum">17</span>Verify communication</summary>
+            <div class="step-body">
+              <div class="codeblock"><button class="copy-btn">copy</button><pre>ping 192.168.100.1   <span class="c-comment"># successful</span></pre></div>
+<div class="diagram">WireGuard → localhost → <span class="hi">WSTunnel</span> → HTTPS → AWS → WireGuard → VPN</div>
+            </div>
+          </details>
+
+          <details class="step" id="p2-final">
+            <summary><span class="chev">▸</span><span class="stepnum">18</span>Final client architecture</summary>
+            <div class="step-body">
+<div class="diagram">Application
+  │
+  WireGuard
+  │
+  127.0.0.1:51820
+  │
+  <span class="hi">WSTunnel Client</span>
+  │
+  HTTPS (443)
+  │
+  Internet
+  │
+  AWS EC2
+  │
+  <span class="hi">WSTunnel Server</span>
+  │
+  127.0.0.1:51820
+  │
+  WireGuard Server
+  │
+  VPN Networks</div>
+            </div>
+          </details>
+
+          <details class="step" id="p2-commands">
+            <summary><span class="chev">▸</span><span class="stepnum">19</span>Validation commands</summary>
+            <div class="step-body">
+              <div class="codeblock"><button class="copy-btn">copy</button><pre><span class="c-comment"># WSTunnel</span>
+sudo systemctl status wstunnel
+sudo journalctl -u wstunnel
+sudo ss -lunp | grep 51820
+
+<span class="c-comment"># WireGuard</span>
+sudo wg show
+ip route
+
+<span class="c-comment"># Connectivity</span>
+nc -vz 13.205.137.92 443
+ping 192.168.100.1</pre></div>
+            </div>
+          </details>
+
+          <div id="p2-findings"></div>
+          <ul class="findings" style="margin-top:12px;">
+            <li>WSTunnel transparently encapsulated WireGuard UDP into HTTPS, letting VPN traffic pass through restrictive enterprise firewalls.</li>
+            <li>The core issue was full-tunnel <span class="mono">AllowedIPs = 0.0.0.0/0</span> colliding with WSTunnel: without a host route, WSTunnel tried to reach AWS through the VPN it was building, creating a loop.</li>
+            <li>A static host route for the AWS public IP through the physical gateway broke the loop while keeping full-tunnel behavior for everything else.</li>
+            <li>Persisting that route via <span class="mono">PostUp</span> / <span class="mono">PostDown</span> in <span class="mono">wg0.conf</span> made it survive interface restarts.</li>
+            <li>Once routing was correct, WSTunnel connected, WireGuard handshook, and VPN traffic flowed normally over HTTPS.</li>
+          </ul>
+        </section>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<button class="mobile-toggle" id="mobileToggle">☰ Contents</button>
+
+<script>
+  // ---- Tab switching ----
+  const tabBtns = document.querySelectorAll('.tabbtn');
+  const tabPanels = {
+    overview: document.getElementById('tab-overview'),
+    setup: document.getElementById('tab-setup'),
+    phase1: document.getElementById('tab-phase1'),
+    phase2: document.getElementById('tab-phase2'),
+  };
+  const tocGroups = document.querySelectorAll('.toc-group');
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.tab;
+      tabBtns.forEach(b => b.classList.toggle('active', b === btn));
+      Object.entries(tabPanels).forEach(([key, el]) => el.classList.toggle('active', key === target));
+      tocGroups.forEach(g => g.classList.toggle('active', g.dataset.tocgroup === target));
+      window.scrollTo({top: 0, behavior: 'smooth'});
+      closeMobileSidebar();
+    });
+  });
+
+  // ---- TOC active link on scroll ----
+  const allTocLinks = document.querySelectorAll('.toc a');
+  allTocLinks.forEach(link => {
+    link.addEventListener('click', () => {
+      allTocLinks.forEach(l => l.classList.remove('active'));
+      link.classList.add('active');
+      closeMobileSidebar();
+    });
+  });
+
+  // ---- Copy buttons ----
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pre = btn.parentElement.querySelector('pre');
+      const text = pre.innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'copied ✓';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('copied'); }, 1600);
+      });
+    });
+  });
+
+  // ---- Troubleshooting search filter ----
+  const tsSearch = document.getElementById('tsSearch');
+  const tsTable = document.getElementById('tsTable');
+  const tsNoMatch = document.getElementById('tsNoMatch');
+  if (tsSearch) {
+    tsSearch.addEventListener('input', () => {
+      const q = tsSearch.value.trim().toLowerCase();
+      const rows = tsTable.querySelectorAll('tr');
+      let visibleCount = 0;
+      rows.forEach((row, i) => {
+        if (i === 0) return; // header
+        const match = row.textContent.toLowerCase().includes(q);
+        row.style.display = match ? '' : 'none';
+        if (match) visibleCount++;
+      });
+      tsNoMatch.style.display = visibleCount === 0 ? 'block' : 'none';
+    });
+  }
+
+  // ---- Mobile sidebar ----
+  const sidebar = document.getElementById('sidebar');
+  const mobileToggle = document.getElementById('mobileToggle');
+  mobileToggle.addEventListener('click', () => sidebar.classList.toggle('open'));
+  function closeMobileSidebar(){ if (window.innerWidth <= 900) sidebar.classList.remove('open'); }
+</script>
+</body>
+</html>
