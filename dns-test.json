@@ -1,0 +1,10 @@
+{
+  "event": {
+    "original": "25-Jul-2026 11:15:30.123 client @0x7f123456 192.168.1.50#53124 (example.com): query: example.com IN A +E(0)K"
+  },
+  "log": {
+    "file": {
+      "path": "/var/log/named/query.log"
+    }
+  }
+}
