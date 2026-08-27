@@ -1,0 +1,173 @@
+services:
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+    container_name: elasticsearch
+
+    environment:
+      - discovery.type=single-node
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - xpack.security.enabled=true
+      - ES_JAVA_OPTS=-Xms2g -Xmx2g
+
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+
+    ports:
+      - "9200:9200"
+
+    networks:
+      - threatops-net
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fs -u elastic:$${ELASTIC_PASSWORD} http://localhost:9200/_cluster/health || exit 1"
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+        #restart: unless-stopped
+
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
+    container_name: kibana
+
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=Kibana@12345
+      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=4f35f7fe46839b18cc3dc756d239c6c1608702ddd74db2d8554b121c726c4991
+
+
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+    ports:
+      - "5601:5601"
+
+    networks:
+      - threatops-net
+
+    healthcheck:
+      test:
+       [
+         "CMD-SHELL",
+         "curl -fs http://localhost:5601/api/status >/dev/null || exit 1"
+       ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+
+        #restart: unless-stopped
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:${STACK_VERSION}
+
+    container_name: logstash
+
+    ports:
+      - "5044:5044"
+      - "9600:9600"
+
+    dns:
+      - 192.168.150.40
+
+    volumes:
+      - logstash-data:/usr/share/logstash/data
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./logstash/config/pipelines.yml:/usr/share/logstash/config/pipelines.yml:ro
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./certs/truststore.jks:/usr/share/logstash/config/truststore.jks:ro
+
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+      kafka:
+        condition: service_healthy
+
+    environment:
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
+      LS_JAVA_OPTS: "-Djavax.net.ssl.trustStore=/usr/share/logstash/config/truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
+
+    networks:
+      - threatops-net
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fs http://localhost:9600/_node/pipelines >/dev/null || exit 1"
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+    ports:
+      - "2181:2181"
+
+    networks:
+      - threatops-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+
+    depends_on:
+      - zookeeper
+
+    expose:
+      - "9092"
+
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+    networks:
+      - threatops-net
+
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1 ||exit 1"
+        ]
+
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+networks:
+   threatops-net:
+
+
+volumes:
+   elasticsearch-data:
+   kafka-data:
+   logstash-data:
