@@ -1,0 +1,123 @@
+{
+  "index_patterns": [
+    "soc-*"
+  ],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "index.lifecycle.name": "soc-ilm-policy"
+    },
+    "mappings": {
+      "dynamic": true,
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "event": {
+          "properties": {
+            "dataset": {
+              "type": "keyword"
+            },
+            "kind": {
+              "type": "keyword"
+            },
+            "category": {
+              "type": "keyword"
+            },
+            "type": {
+              "type": "keyword"
+            },
+            "severity": {
+              "type": "integer"
+            }
+          }
+        },
+        "source": {
+          "properties": {
+            "ip": {
+              "type": "ip"
+            },
+            "port": {
+              "type": "integer"
+            },
+            "geo": {
+              "properties": {
+                "location": {
+                  "type": "geo_point"
+                },
+                "country_name": {
+                  "type": "keyword"
+                },
+                "city_name": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+        },
+        "destination": {
+          "properties": {
+            "ip": {
+              "type": "ip"
+            },
+            "port": {
+              "type": "integer"
+            },
+            "geo": {
+              "properties": {
+                "location": {
+                  "type": "geo_point"
+                },
+                "country_name": {
+                  "type": "keyword"
+                },
+                "city_name": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+        },
+        "network": {
+          "properties": {
+            "transport": {
+              "type": "keyword"
+            },
+            "protocol": {
+              "type": "keyword"
+            }
+          }
+        },
+        "rule": {
+          "properties": {
+            "name": {
+              "type": "keyword"
+            },
+            "category": {
+              "type": "keyword"
+            }
+          }
+        },
+        "host": {
+          "properties": {
+            "name": {
+              "type": "keyword"
+            },
+            "ip": {
+              "type": "ip"
+            }
+          }
+        },
+        "user": {
+          "properties": {
+            "name": {
+              "type": "keyword"
+            }
+          }
+        }
+      }
+    }
+  }
+}
