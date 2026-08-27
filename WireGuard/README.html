@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WireGuard VPN — Hybrid SOC Infrastructure — Interactive README</title>
+<style>
+:root{
+  --bg:#0b1220;
+  --bg-elev:#111a2c;
+  --bg-elev-2:#0e1626;
+  --border:#223047;
+  --border-soft:#1a2438;
+  --text:#e6edf5;
+  --text-dim:#93a4bd;
+  --text-faint:#5b6b85;
+  --accent:#5eead4;
+  --accent-dim:#2f9e8f;
+  --accent-2:#f2b84b;
+  --danger:#f2645a;
+  --ok:#7ee787;
+  --mono:'JetBrains Mono','Fira Code',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --radius:10px;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:
+    radial-gradient(1200px 600px at 85% -10%, rgba(94,234,212,0.08), transparent 60%),
+    radial-gradient(900px 500px at -10% 20%, rgba(242,184,75,0.06), transparent 60%),
+    var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:rgba(94,234,212,0.25);}
+
+/* ---------- layout ---------- */
+.shell{display:grid;grid-template-columns:280px 1fr;min-height:100vh;}
+@media (max-width:900px){.shell{grid-template-columns:1fr;} .sidebar{position:relative;height:auto;}}
+
+.sidebar{
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+  border-right:1px solid var(--border-soft);
+  background:linear-gradient(180deg,var(--bg-elev),var(--bg-elev-2));
+  padding:22px 16px 40px;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 6px 18px;border-bottom:1px solid var(--border-soft);margin-bottom:14px;}
+.brand-dot{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent);animation:pulse 2.4s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+.brand-text{font-family:var(--mono);font-size:12.5px;color:var(--text-dim);letter-spacing:.04em;}
+.brand-text b{color:var(--text);font-weight:600;}
+
+.nav-group-label{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--text-faint);margin:18px 8px 6px;}
+.navlink{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 10px;border-radius:8px;color:var(--text-dim);
+  text-decoration:none;font-size:13.5px;cursor:pointer;
+  transition:background .15s, color .15s;
+  border:1px solid transparent;
+}
+.navlink:hover{background:var(--border-soft);color:var(--text);}
+.navlink.active{background:rgba(94,234,212,0.08);color:var(--accent);border-color:rgba(94,234,212,0.25);}
+.navlink .peer-dot{width:6px;height:6px;border-radius:50%;background:var(--text-faint);flex:none;}
+.navlink.active .peer-dot{background:var(--accent);box-shadow:0 0 6px var(--accent);}
+
+.progress-box{margin-top:22px;padding:12px 12px 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-elev-2);}
+.progress-box .ptitle{font-family:var(--mono);font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;}
+.progress-bar{height:6px;border-radius:4px;background:var(--border-soft);overflow:hidden;}
+.progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--accent-dim),var(--accent));transition:width .3s ease;}
+.progress-count{font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-top:8px;}
+
+/* ---------- main ---------- */
+main{padding:48px 56px 120px;max-width:980px;}
+@media (max-width:900px){main{padding:32px 20px 90px;}}
+
+.hero{margin-bottom:56px;}
+.eyebrow{font-family:var(--mono);font-size:12px;color:var(--accent);letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px;}
+h1{font-size:clamp(28px,4vw,42px);line-height:1.15;margin:0 0 12px;font-weight:700;letter-spacing:-0.01em;}
+.subtitle{color:var(--text-dim);font-size:16px;max-width:640px;margin:0 0 28px;}
+
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:34px;}
+.stat{border:1px solid var(--border);background:var(--bg-elev);border-radius:var(--radius);padding:12px 14px;}
+.stat .k{font-family:var(--mono);font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px;}
+.stat .v{font-family:var(--mono);font-size:14.5px;color:var(--text);}
+
+/* topology diagram */
+.topo-wrap{border:1px solid var(--border);border-radius:14px;background:var(--bg-elev);padding:18px 18px 8px;overflow-x:auto;}
+.topo-caption{font-family:var(--mono);font-size:11px;color:var(--text-faint);text-align:center;padding:10px 0 4px;}
+.dash{stroke-dasharray:6 6;animation:flow 1.6s linear infinite;}
+@keyframes flow{to{stroke-dashoffset:-24;}}
+
+/* ---------- sections ---------- */
+section{margin-bottom:64px;scroll-margin-top:28px;}
+.section-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px;}
+.section-num{font-family:var(--mono);color:var(--accent-2);font-size:14px;}
+h2{font-size:24px;margin:0;font-weight:700;letter-spacing:-.01em;}
+.section-desc{color:var(--text-dim);font-size:14.5px;margin:8px 0 22px;max-width:680px;}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin:14px 0 6px;}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--border-soft);}
+th{font-family:var(--mono);font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.06em;font-weight:600;}
+td{color:var(--text-dim);}
+td:first-child{color:var(--text);font-family:var(--mono);}
+tr:last-child td{border-bottom:none;}
+.table-wrap{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--bg-elev);padding:0 12px;}
+
+/* code blocks */
+.code-block{position:relative;margin:14px 0 20px;border:1px solid var(--border);border-radius:var(--radius);background:#0a0f1a;overflow:hidden;}
+.code-block .code-label{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border-soft);background:var(--bg-elev-2);}
+.code-label span{font-family:var(--mono);font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.08em;}
+.copy-btn{font-family:var(--mono);font-size:11px;color:var(--text-dim);background:var(--border-soft);border:1px solid var(--border);padding:4px 10px;border-radius:6px;cursor:pointer;transition:.15s;}
+.copy-btn:hover{color:var(--accent);border-color:var(--accent-dim);}
+.copy-btn.copied{color:var(--ok);border-color:var(--ok);}
+pre{margin:0;padding:14px 16px;overflow-x:auto;}
+code{font-family:var(--mono);font-size:13px;color:#d6e3f0;white-space:pre;}
+.tok-comment{color:var(--text-faint);}
+.tok-key{color:var(--accent-2);}
+.tok-val{color:var(--accent);}
+
+/* steps */
+.steps{border-left:2px solid var(--border);margin-left:14px;padding-left:26px;}
+.step{position:relative;margin-bottom:30px;}
+.step::before{
+  content:attr(data-n);
+  position:absolute;left:-38px;top:0;
+  width:26px;height:26px;border-radius:50%;
+  background:var(--bg-elev);border:1px solid var(--accent-dim);color:var(--accent);
+  font-family:var(--mono);font-size:12px;display:flex;align-items:center;justify-content:center;
+}
+.step h4{margin:2px 0 6px;font-size:15.5px;font-weight:600;}
+.step p{margin:0 0 8px;color:var(--text-dim);font-size:14px;}
+.step .note{border-left:3px solid var(--accent-2);background:rgba(242,184,75,0.06);padding:8px 12px;border-radius:0 6px 6px 0;font-size:13px;color:var(--text-dim);margin:8px 0;}
+.step .warn{border-left:3px solid var(--danger);background:rgba(242,100,90,0.07);padding:8px 12px;border-radius:0 6px 6px 0;font-size:13px;color:var(--text-dim);margin:8px 0;}
+
+/* phase tabs */
+.phase-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:26px;}
+.phase-tab{font-family:var(--mono);font-size:12px;padding:8px 14px;border-radius:20px;border:1px solid var(--border);color:var(--text-dim);cursor:pointer;background:var(--bg-elev);transition:.15s;}
+.phase-tab:hover{color:var(--text);}
+.phase-tab.active{color:var(--accent);border-color:var(--accent-dim);background:rgba(94,234,212,0.08);}
+.phase-panel{display:none;}
+.phase-panel.active{display:block;}
+
+/* checklist */
+.checklist{display:flex;flex-direction:column;gap:8px;}
+.check-item{display:flex;align-items:flex-start;gap:12px;border:1px solid var(--border);background:var(--bg-elev);border-radius:8px;padding:11px 14px;cursor:pointer;transition:.15s;}
+.check-item:hover{border-color:var(--accent-dim);}
+.check-item.done{border-color:var(--accent-dim);background:rgba(94,234,212,0.05);}
+.check-box{width:18px;height:18px;border-radius:5px;border:1px solid var(--text-faint);flex:none;margin-top:2px;display:flex;align-items:center;justify-content:center;transition:.15s;}
+.check-item.done .check-box{background:var(--accent);border-color:var(--accent);}
+.check-item.done .check-box::after{content:'✓';color:#06251f;font-size:12px;font-weight:700;}
+.check-label b{display:block;font-size:13.5px;color:var(--text);margin-bottom:2px;}
+.check-item.done .check-label b{text-decoration:line-through;color:var(--text-dim);}
+.check-label span{font-size:12.5px;color:var(--text-dim);font-family:var(--mono);}
+
+/* accordion for troubleshooting / findings */
+.acc-item{border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-elev);margin-bottom:10px;overflow:hidden;}
+.acc-head{display:flex;justify-content:space-between;align-items:center;padding:13px 16px;cursor:pointer;user-select:none;}
+.acc-head b{font-size:14px;font-weight:600;}
+.acc-icon{font-family:var(--mono);color:var(--text-faint);transition:transform .2s;}
+.acc-item.open .acc-icon{transform:rotate(45deg);color:var(--accent);}
+.acc-body{max-height:0;overflow:hidden;transition:max-height .25s ease;padding:0 16px;}
+.acc-item.open .acc-body{max-height:600px;padding:0 16px 16px;}
+.acc-body p{color:var(--text-dim);font-size:13.5px;margin:6px 0;}
+.tag{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:2px 8px;border-radius:10px;border:1px solid var(--border);color:var(--text-faint);margin-left:8px;}
+.tag.cause{color:var(--danger);border-color:rgba(242,100,90,0.4);}
+.tag.fix{color:var(--ok);border-color:rgba(126,231,135,0.4);}
+
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media (max-width:700px){.grid-2{grid-template-columns:1fr;}}
+.card{border:1px solid var(--border);background:var(--bg-elev);border-radius:var(--radius);padding:16px;}
+.card h4{margin:0 0 8px;font-size:14px;}
+.card p{margin:0;color:var(--text-dim);font-size:13px;}
+
+.pill-list{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;}
+.pill{font-family:var(--mono);font-size:11.5px;color:var(--text-dim);border:1px solid var(--border);padding:4px 10px;border-radius:14px;background:var(--bg-elev);}
+
+footer{border-top:1px solid var(--border-soft);padding:26px 56px 60px;color:var(--text-faint);font-family:var(--mono);font-size:11.5px;}
+
+.backtotop{position:fixed;bottom:24px;right:24px;width:42px;height:42px;border-radius:50%;background:var(--bg-elev);border:1px solid var(--border);color:var(--accent);display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;pointer-events:none;transition:.2s;font-size:16px;}
+.backtotop.show{opacity:1;pointer-events:auto;}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- ================= SIDEBAR ================= -->
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-dot"></div>
+      <div class="brand-text"><b>wg0</b> · interface up · SOC-LAB</div>
+    </div>
+
+    <div class="nav-group-label">Overview</div>
+    <a class="navlink" data-target="overview"><span class="peer-dot"></span>Objective &amp; Architecture</a>
+    <a class="navlink" data-target="infra"><span class="peer-dot"></span>Infrastructure &amp; Addressing</a>
+    <a class="navlink" data-target="inventory"><span class="peer-dot"></span>Machine Inventory</a>
+    <a class="navlink" data-target="crypto"><span class="peer-dot"></span>Cryptography</a>
+
+    <div class="nav-group-label">Implementation</div>
+    <a class="navlink" data-target="phase1"><span class="peer-dot"></span>Phase 1 · Server Setup</a>
+    <a class="navlink" data-target="phase2"><span class="peer-dot"></span>Phase 2 · Linux Client</a>
+    <a class="navlink" data-target="phase3"><span class="peer-dot"></span>Phase 3 · WSTunnel</a>
+    <a class="navlink" data-target="phase4"><span class="peer-dot"></span>Phase 4 · Windows Client</a>
+
+    <div class="nav-group-label">Operate</div>
+    <a class="navlink" data-target="validation"><span class="peer-dot"></span>Validation Checklist</a>
+    <a class="navlink" data-target="troubleshooting"><span class="peer-dot"></span>Troubleshooting</a>
+    <a class="navlink" data-target="findings"><span class="peer-dot"></span>Design Decisions &amp; Findings</a>
+
+    <div class="progress-box">
+      <div class="ptitle">Setup progress</div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-count" id="progressCount">0 / 0 steps checked</div>
+    </div>
+  </nav>
+
+  <!-- ================= MAIN ================= -->
+  <main>
+
+    <div class="hero">
+      <div class="eyebrow">Interactive Implementation Guide</div>
+      <h1>WireGuard VPN — Hybrid SOC Infrastructure</h1>
+      <p class="subtitle">Secure site-to-cloud VPN interconnecting distributed Linux and Windows virtual machines across multiple private networks, gatewayed through a single AWS EC2 WireGuard server — tunneled over HTTPS via WSTunnel where UDP is blocked.</p>
+
+      <div class="stat-row">
+        <div class="stat"><div class="k">VPN Server</div><div class="v">AWS EC2 · Ubuntu 22.04</div></div>
+        <div class="stat"><div class="k">Public Endpoint</div><div class="v">13.205.137.92</div></div>
+        <div class="stat"><div class="k">Interface</div><div class="v">wg0 · UDP 51820</div></div>
+        <div class="stat"><div class="k">Transport Fallback</div><div class="v">WSTunnel over TCP 443</div></div>
+      </div>
+
+      <div class="topo-wrap">
+        <svg viewBox="0 0 900 260" width="100%" style="max-width:900px;display:block;margin:0 auto;">
+          <text x="450" y="24" text-anchor="middle" fill="#93a4bd" font-family="JetBrains Mono, monospace" font-size="11">INTERNET</text>
+          <line x1="450" y1="32" x2="450" y2="66" stroke="#223047" stroke-width="2"/>
+          <rect x="330" y="66" width="240" height="46" rx="8" fill="#111a2c" stroke="#5eead4" stroke-width="1.4"/>
+          <text x="450" y="88" text-anchor="middle" fill="#e6edf5" font-family="JetBrains Mono, monospace" font-size="12">AWS EC2 (Ubuntu 22.04)</text>
+          <text x="450" y="103" text-anchor="middle" fill="#5eead4" font-family="JetBrains Mono, monospace" font-size="10.5">13.205.137.92 · wg0</text>
+
+          <line x1="450" y1="112" x2="180" y2="160" stroke="#f2b84b" stroke-width="1.6" class="dash"/>
+          <line x1="450" y1="112" x2="450" y2="160" stroke="#f2b84b" stroke-width="1.6" class="dash"/>
+          <line x1="450" y1="112" x2="720" y2="160" stroke="#f2b84b" stroke-width="1.6" class="dash"/>
+
+          <rect x="90" y="160" width="180" height="70" rx="8" fill="#0e1626" stroke="#223047"/>
+          <text x="180" y="182" text-anchor="middle" fill="#e6edf5" font-family="JetBrains Mono, monospace" font-size="11.5">192.168.100.0/24</text>
+          <text x="180" y="198" text-anchor="middle" fill="#93a4bd" font-family="JetBrains Mono, monospace" font-size="10">Services Net</text>
+          <text x="180" y="214" text-anchor="middle" fill="#5b6b85" font-family="JetBrains Mono, monospace" font-size="9.5">web · honeypot</text>
+
+          <rect x="360" y="160" width="180" height="70" rx="8" fill="#0e1626" stroke="#223047"/>
+          <text x="450" y="182" text-anchor="middle" fill="#e6edf5" font-family="JetBrains Mono, monospace" font-size="11.5">192.168.150.0/24</text>
+          <text x="450" y="198" text-anchor="middle" fill="#93a4bd" font-family="JetBrains Mono, monospace" font-size="10">SOC Net</text>
+          <text x="450" y="214" text-anchor="middle" fill="#5b6b85" font-family="JetBrains Mono, monospace" font-size="9.5">MISP · SIEM · IDS · AD-DS</text>
+
+          <rect x="630" y="160" width="180" height="70" rx="8" fill="#0e1626" stroke="#223047"/>
+          <text x="720" y="182" text-anchor="middle" fill="#e6edf5" font-family="JetBrains Mono, monospace" font-size="11.5">192.168.200.0/24</text>
+          <text x="720" y="198" text-anchor="middle" fill="#93a4bd" font-family="JetBrains Mono, monospace" font-size="10">Reserved</text>
+          <text x="720" y="214" text-anchor="middle" fill="#5b6b85" font-family="JetBrains Mono, monospace" font-size="9.5">future expansion</text>
+        </svg>
+        <div class="topo-caption">One WireGuard interface, three logical subnets, one gateway — click a phase in the sidebar to jump to its setup steps.</div>
+      </div>
+    </div>
+
+    <!-- ================= OVERVIEW ================= -->
+    <section id="overview">
+      <div class="section-head"><span class="section-num">01</span><h2>Objective &amp; Architecture</h2></div>
+      <p class="section-desc">A lightweight, secure Layer-3 VPN interconnecting all SOC lab infrastructure over a single encrypted network.</p>
+      <div class="grid-2">
+        <div class="card"><h4>What it secures</h4><p>Communication between cloud and on-premises infrastructure, eliminating direct exposure of internal services.</p></div>
+        <div class="card"><h4>What it enables</h4><p>Private access to SOC components, and communication between multiple isolated internal networks via one centralized gateway.</p></div>
+      </div>
+      <div class="pill-list">
+        <span class="pill">Secure cloud ↔ on-prem</span>
+        <span class="pill">No direct service exposure</span>
+        <span class="pill">Private SOC component access</span>
+        <span class="pill">Cross-network communication</span>
+        <span class="pill">Centralized AWS gateway</span>
+      </div>
+    </section>
+
+    <!-- ================= INFRA ================= -->
+    <section id="infra">
+      <div class="section-head"><span class="section-num">02</span><h2>Infrastructure &amp; Addressing Scheme</h2></div>
+      <p class="section-desc">The server holds one address per logical network on a single WireGuard interface, acting as gateway for all three.</p>
+
+      <div class="table-wrap">
+        <table>
+          <tr><th>Item</th><th>Value</th></tr>
+          <tr><td>Platform</td><td>AWS EC2</td></tr>
+          <tr><td>OS</td><td>Ubuntu 22.04 LTS</td></tr>
+          <tr><td>VPN software</td><td>WireGuard</td></tr>
+          <tr><td>Interface</td><td>wg0</td></tr>
+          <tr><td>Transport</td><td>UDP</td></tr>
+          <tr><td>Listening port</td><td>51820</td></tr>
+          <tr><td>Public endpoint</td><td>13.205.137.92</td></tr>
+          <tr><td>Clients</td><td>Ubuntu Linux, Windows Server 2022 (unique key pair each)</td></tr>
+        </table>
+      </div>
+
+      <p class="section-desc" style="margin-top:22px;">Server addresses (all on <code style="font-family:var(--mono);color:var(--accent)">wg0</code>):</p>
+      <div class="table-wrap">
+        <table>
+          <tr><th>VPN Address</th><th>Network</th><th>Purpose</th></tr>
+          <tr><td>192.168.100.1/24</td><td>192.168.100.0/24</td><td>Service Infrastructure</td></tr>
+          <tr><td>192.168.150.1/24</td><td>192.168.150.0/24</td><td>SOC Infrastructure</td></tr>
+          <tr><td>192.168.200.1/24</td><td>192.168.200.0/24</td><td>Reserved / Future Expansion</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <!-- ================= INVENTORY ================= -->
+    <section id="inventory">
+      <div class="section-head"><span class="section-num">03</span><h2>Machine Inventory</h2></div>
+      <p class="section-desc">Every peer is assigned a unique, static VPN address for deterministic routing.</p>
+      <div class="table-wrap">
+        <table>
+          <tr><th>Host</th><th>VPN Address</th><th>Purpose</th></tr>
+          <tr><td>VPN Server</td><td>192.168.100.1 / .150.1 / .200.1</td><td>VPN Gateway</td></tr>
+          <tr><td>Web Server</td><td>192.168.100.10</td><td>Application Server</td></tr>
+          <tr><td>Web Server 2</td><td>192.168.100.50</td><td>Services</td></tr>
+          <tr><td>Honeypot</td><td>192.168.100.100</td><td>Threat Detection</td></tr>
+          <tr><td>Service VM</td><td>192.168.100.200</td><td>Reserved</td></tr>
+          <tr><td>MISP</td><td>192.168.150.10</td><td>Threat Intelligence</td></tr>
+          <tr><td>SOC Core</td><td>192.168.150.20</td><td>SIEM / Core Services</td></tr>
+          <tr><td>IDS</td><td>192.168.150.30</td><td>Intrusion Detection</td></tr>
+          <tr><td>AD-DS</td><td>192.168.150.40</td><td>Active Directory &amp; DNS</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <!-- ================= CRYPTO ================= -->
+    <section id="crypto">
+      <div class="section-head"><span class="section-num">04</span><h2>Cryptography</h2></div>
+      <p class="section-desc">WireGuard provides all of this automatically via the Noise protocol framework — no manual key exchange ceremony required beyond distributing public keys.</p>
+      <div class="pill-list">
+        <span class="pill">Public-key authentication</span>
+        <span class="pill">Private-key encryption</span>
+        <span class="pill">Modern authenticated encryption</span>
+        <span class="pill">Perfect Forward Secrecy</span>
+      </div>
+      <p class="section-desc">Each peer holds a <b style="color:var(--text)">private key</b> (kept secret) and a <b style="color:var(--text)">public key</b> (shared with the server). The server identifies every client exclusively by its public key — there are no shared secrets or usernames/passwords at the WireGuard layer.</p>
+    </section>
+
+    <!-- ================= PHASES ================= -->
+    <section id="phases-intro">
+      <div class="section-head"><span class="section-num">05</span><h2>Implementation — Step by Step</h2></div>
+      <p class="section-desc">Four sequential phases. Each code block has a copy button. Check off steps as you complete them — progress is tracked in the sidebar.</p>
+      <div class="phase-tabs">
+        <div class="phase-tab active" data-phase="phase1">Phase 1 · Server</div>
+        <div class="phase-tab" data-phase="phase2">Phase 2 · Linux Client</div>
+        <div class="phase-tab" data-phase="phase3">Phase 3 · WSTunnel</div>
+        <div class="phase-tab" data-phase="phase4">Phase 4 · Windows Client</div>
+      </div>
+    </section>
+
+    <!-- ===== PHASE 1 ===== -->
+    <section id="phase1" class="phase-panel active">
+      <div class="section-head"><span class="section-num">P1</span><h2>WireGuard Server Configuration (AWS EC2)</h2></div>
+      <p class="section-desc">Provision the central gateway: install WireGuard, enable forwarding, generate keys, write the interface config, register peers, lock down the firewall, and bring the tunnel up.</p>
+
+      <div class="steps">
+        <div class="step" data-n="1">
+          <h4>Open the required Security Group ports</h4>
+          <p>Before installing anything, allow inbound traffic on the AWS Security Group attached to the EC2 instance:</p>
+          <div class="table-wrap"><table>
+            <tr><th>Protocol</th><th>Port</th><th>Purpose</th></tr>
+            <tr><td>UDP</td><td>51820</td><td>WireGuard VPN</td></tr>
+            <tr><td>TCP</td><td>22</td><td>SSH</td></tr>
+            <tr><td>TCP</td><td>443</td><td>WSTunnel (Phase 3)</td></tr>
+            <tr><td>TCP</td><td>80</td><td>Optional HTTP</td></tr>
+          </table></div>
+        </div>
+
+        <div class="step" data-n="2">
+          <h4>Install WireGuard</h4>
+          <div class="code-block"><div class="code-label"><span>bash</span><button class="copy-btn">Copy</button></div><pre><code>sudo apt update
+sudo apt upgrade -y
+sudo apt install wireguard -y
+wg --version</code></pre></div>
+        </div>
+
+        <div class="step" data-n="3">
+          <h4>Enable IP forwarding</h4>
+          <p>Required so the server can route packets between VPN peers and subnets.</p>
+          <div class="code-block"><div class="code-label"><span>bash — temporary</span><button class="copy-btn">Copy</button></div><pre><code>sudo sysctl -w net.ipv4.ip_forward=1</code></pre></div>
+          <div class="code-block"><div class="code-label"><span>bash — permanent</span><button class="copy-btn">Copy</button></div><pre><code>sudo nano /etc/sysctl.conf
+# uncomment or add:
+net.ipv4.ip_forward=1
+
+sudo sysctl -p
+cat /proc/sys/net/ipv4/ip_forward   # expect: 1</code></pre></div>
+        </div>
+
+        <div class="step" data-n="4">
+          <h4>Generate server keys</h4>
+          <div class="code-block"><div class="code-label"><span>bash</span><button class="copy-btn">Copy</button></div><pre><code>sudo mkdir -p /etc/wireguard
+cd /etc/wireguard
+wg genkey | sudo tee server_private.key | wg pubkey | sudo tee server_public.key
+sudo chmod 600 server_private.key
+cat server_public.key</code></pre></div>
+          <div class="note">Save the public key output — every client configuration will need it.</div>
+        </div>
+
+        <div class="step" data-n="5">
+          <h4>Create the server interface config</h4>
+          <p>Note the three <code style="font-family:var(--mono);color:var(--accent)">Address</code> lines — one interface serves all three logical networks.</p>
+          <div class="code-block"><div class="code-label"><span>/etc/wireguard/wg0.conf</span><button class="copy-btn">Copy</button></div><pre><code>[Interface]
+Address = 192.168.100.1/24,192.168.150.1/24,192.168.200.1/24
+ListenPort = 51820
+PrivateKey = &lt;SERVER_PRIVATE_KEY&gt;
+DNS = 192.168.150.40</code></pre></div>
+        </div>
+
+        <div class="step" data-n="6">
+          <h4>Add a [Peer] block for every client</h4>
+          <p>Each client gets its own unique <code style="font-family:var(--mono);color:var(--accent)">/32</code> address.</p>
+          <div class="code-block"><div class="code-label"><span>append to wg0.conf</span><button class="copy-btn">Copy</button></div><pre><code># MISP
+[Peer]
+PublicKey = &lt;KEY&gt;
+AllowedIPs = 192.168.150.10/32
+
+# SOC Core
+[Peer]
+PublicKey = &lt;KEY&gt;
+AllowedIPs = 192.168.150.20/32
+
+# IDS
+[Peer]
+PublicKey = &lt;KEY&gt;
+AllowedIPs = 192.168.150.30/32
+
+# AD-DS
+[Peer]
+PublicKey = &lt;KEY&gt;
+AllowedIPs = 192.168.150.40/32
+
+# Honeypot
+[Peer]
+PublicKey = &lt;KEY&gt;
+AllowedIPs = 192.168.100.100/32</code></pre></div>
+          <div class="warn">Never set <code style="font-family:var(--mono)">AllowedIPs = 192.168.100.0/24</code> on an individual peer — a whole subnet on one peer causes ambiguous routing. Always use a single host <code style="font-family:var(--mono)">/32</code>.</div>
+        </div>
+
+        <div class="step" data-n="7">
+          <h4>Configure nftables (firewall + NAT)</h4>
+          <div class="code-block"><div class="code-label"><span>/etc/nftables.conf</span><button class="copy-btn">Copy</button></div><pre><code>table inet filter {
+  chain input {
+    type filter hook input priority filter;
+    policy drop;
+    iif "lo" accept
+    ct state established,related accept
+    iifname "wg0" accept
+    tcp dport 22 accept
+    udp dport 51820 accept
+    ip protocol icmp accept
+  }
+  chain forward {
+    type filter hook forward priority filter;
+    policy drop;
+    iifname "wg0" accept
+    ct state established,related accept
+  }
+  chain output {
+    type filter hook output priority filter;
+    policy accept
+  }
+}
+table ip nat {
+  chain postrouting {
+    type nat hook postrouting priority srcnat;
+    policy accept;
+    oifname "ens5" masquerade
+  }
+}</code></pre></div>
+          <div class="code-block"><div class="code-label"><span>bash — apply &amp; verify</span><button class="copy-btn">Copy</button></div><pre><code>sudo systemctl enable nftables
+sudo systemctl restart nftables
+sudo nft list ruleset</code></pre></div>
+        </div>
+
+        <div class="step" data-n="8">
+          <h4>Start WireGuard</h4>
+          <div class="code-block"><div class="code-label"><span>bash</span><button class="copy-btn">Copy</button></div><pre><code>sudo systemctl enable wg-quick@wg0
+sudo systemctl start wg-quick@wg0
+# or manually:
+sudo wg-quick up wg0</code></pre></div>
+        </div>
+
+        <div class="step" data-n="9">
+          <h4>Verify the server</h4>
+          <div class="code-block"><div class="code-label"><span>bash</span><button class="copy-btn">Copy</button></div><pre><code>ip addr show wg0
+sudo wg show</code></pre></div>
+          <p>Peers will appear with no handshake until a client actually connects — that's expected at this stage.</p>
+        </div>
+
+        <div class="step" data-n="10">
+          <h4>Reference: useful server commands</h4>
+          <div class="code-block"><div class="code-label"><span>bash</span><button class="copy-btn">Copy</button></div><pre><code>sudo wg-quick up wg0        # bring up
+sudo wg-quick down wg0      # bring down
+sudo systemctl restart wg-quick@wg0
+sudo systemctl status wg-quick@wg0
+sudo journalctl -u wg-quick@wg0</code></pre></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== PHASE 2 ===== -->
+    <section id="phase2" class="phase-panel">
+      <div class="section-head"><span class="section-num">P2</span><h2>Linux Client Configuration, DNS &amp; Validation</h2></div>
+      <p class="section-desc">Example client: <code style="font-family:var(--mono);color:var(--accent)">VM-SERVICES-01</code>, assigned <code style="font-family:var(--mono);color:var(--accent)">192.168.100.10</code>.</p>
+
+      <div class="steps">
+        <div class="step" data-n="1">
+          <h4>Install WireGuard on the client</h4>
+          <div class="code-block"><div class="code-label"><span>bash</span><button class="copy-btn">Copy</button></div><pre><code>sudo apt update
+sudo apt upgrade -y
+sudo apt install wireguard resolvconf -y
+wg --version</code></pre></div>
+        </div>
+
+        <div class="step" data-n="2">
+          <h4>Generate client keys</h4>
+          <div class="code-block"><div class="code-label"><span>bash</span><button class="copy-btn">Copy</button></div><pre><code>cd /etc/wireguard
+wg genkey | sudo tee client_private.key | wg pubkey | sudo tee client_public.key
+sudo chmod 600 client_private.key
+cat client_public.key</code></pre></div>
+          <p>Copy the printed public key to the server.</p>
+        </div>
+
+        <div class="step" data-n="3">
+          <h4>Register this client on the server</h4>
+          <div class="code-block"><div class="code-label"><span>on server — /etc/wireguard/wg0.conf</span><button class="copy-btn">Copy</button></div><pre><code>[Peer]
+PublicKey = CLIENT_PUBLIC_KEY
+AllowedIPs = 192.168.100.10/32</code></pre></div>
+          <div class="code-block"><div class="code-label"><span>bash — on server</span><button class="copy-btn">Copy</button></div><pre><code>sudo systemctl restart wg-quick@wg0</code></pre></div>
+        </div>
+
+        <div class="step" data-n="4">
+          <h4>Write the client config</h4>
+          <div class="code-block"><div class="code-label"><span>/etc/wireguard/wg0.conf</span><button class="copy-btn">Copy</button></div><pre><code>[Interface]
+PrivateKey = CLIENT_PRIVATE_KEY
+Address = 192.168.100.10/24
+DNS = 192.168.150.40
+
+[Peer]
+PublicKey = SERVER_PUBLIC_KEY
+Endpoint = 13.205.137.92:51820
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25</code></pre></div>
+          <div class="grid-2" style="margin-top:14px;">
+            <div class="card"><h4>DNS = 192.168.150.40</h4><p>Points resolution at the AD-DS server for internal hostname resolution and centralized DNS.</p></div>
+            <div class="card"><h4>AllowedIPs = 0.0.0.0/0</h4><p>Full-tunnel VPN — all client traffic is routed through the WireGuard interface by default.</p></div>
+            <div class="card"><h4>PersistentKeepalive = 25</h4><p>Sends a keepalive every 25s to maintain NAT mappings for clients behind routers/firewalls.</p></div>
+            <div class="card"><h4>Endpoint</h4><p>Public IP:port today. Changes to <code style="font-family:var(--mono)">127.0.0.1:51820</code> after Phase 3 (WSTunnel).</p></div>
+          </div>
+        </div>
+
+        <div class="step" data-n="5">
+          <h4>Bring up the tunnel</h4>
+          <div class="code-block"><div class="code-label"><span>bash</span><button class="copy-btn">Copy</button></div><pre><code>sudo wg-quick up wg0
+sudo systemctl enable wg-quick@wg0</code></pre></div>
+        </div>
+
+        <div class="step" data-n="6">
+          <h4>Verify connection &amp; routing</h4>
+          <div class="code-block"><div class="code-label"><span>bash</span><button class="copy-btn">Copy</button></div><pre><code>ip addr show wg0
+sudo wg show
+ping 192.168.100.1        # VPN gateway
+ping 192.168.150.20       # another VPN client (cross-subnet)
+ip route</code></pre></div>
+          <p>Look for an increasing <b style="color:var(--text)">latest handshake</b> and non-zero RX/TX transfer counters. A missing handshake means the server, keys, port, firewall, public IP, or client config need checking.</p>
+        </div>
+
+        <div class="step" data-n="7">
+          <h4>Verify DNS</h4>
+          <div class="code-block"><div class="code-label"><span>bash</span><button class="copy-btn">Copy</button></div><pre><code>cat /etc/resolv.conf
+resolvectl status
+nslookup &lt;internal-hostname&gt;
+dig &lt;internal-hostname&gt;</code></pre></div>
+          <p>Expected resolver: <code style="font-family:var(--mono);color:var(--accent)">192.168.150.40</code> (AD-DS).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== PHASE 3 ===== -->
+    <section id="phase3" class="phase-panel">
+      <div class="section-head"><span class="section-num">P3</span><h2>WSTunnel Integration (HTTPS Transport) &amp; Routing Fix</h2></div>
+      <p class="section-desc">A FortiGate firewall in the environment blocked UDP 51820 and ICMP. WSTunnel encapsulates the WireGuard UDP packets inside HTTPS (TCP 443) so the same VPN survives restrictive networks — no change to WireGuard addressing or peers, only the transport.</p>
+
+      <div class="steps">
+        <div class="step" data-n="1">
+          <h4>Install WSTunnel (both server and client hosts)</h4>
+          <div class="code-block"><div class="code-label"><span>bash</span><button class="copy-btn">Copy</button></div><pre><code>cd /tmp
+wget https://github.com/erebe/wstunnel/releases/download/v10.6.2/wstunnel_10.6.2_linux_amd64.tar.gz
+tar -xzf wstunnel_10.6.2_linux_amd64.tar.gz
+sudo mv wstunnel /usr/local/bin/
+sudo chmod +x /usr/local/bin/wstunnel
+wstunnel --version   # expect: wstunnel-cli 10.6.2</code></pre></div>
+        </div>
+
+        <div class="step" data-n="2">
+          <h4>Server: create the WSTunnel systemd service</h4>
+          <div class="code-block"><div class="code-label"><span>/etc/systemd/system/wstunnel.service</span><button class="copy-btn">Copy</button></div><pre><code>[Unit]
+Description=WSTunnel Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/wstunnel server \
+  wss://0.0.0.0:443
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target</code></pre></div>
+          <div class="code-block"><div class="code-label"><span>bash</span><button class="copy-btn">Copy</button></div><pre><code>sudo systemctl daemon-reload
+sudo systemctl enable wstunnel
+sudo systemctl start wstunnel
+sudo systemctl status wstunnel</code></pre></div>
+        </div>
+
+        <div class="step" data-n="3">
+          <h4>Server: open HTTPS in nftables</h4>
+          <div class="code-block"><div class="code-label"><span>nftables — add rule</span><button class="copy-btn">Copy</button></div><pre><code>tcp dport 443 accept</code></pre></div>
+          <div class="code-block"><div class="code-label"><span>bash — apply &amp; test</span><button class="copy-btn">Copy</button></div><pre><code>sudo systemctl restart nftables
+curl -vk https://13.205.137.92:443</code></pre></div>
+          <div class="note">An <code style="font-family:var(--mono)">HTTP 400 Invalid request</code> response is expected here — WSTunnel only accepts WebSocket upgrade requests, not plain GETs. That 400 confirms the service is reachable.</div>
+        </div>
+
+        <div class="step" data-n="4">
+          <h4>Client: point WireGuard at localhost</h4>
+          <div class="code-block"><div class="code-label"><span>client wg0.conf — change</span><button class="copy-btn">Copy</button></div><pre><code># before
+Endpoint = 13.205.137.92:51820
+
+# after
+Endpoint = 127.0.0.1:51820</code></pre></div>
+        </div>
+
+        <div class="step" data-n="5">
+          <h4>Client: create the WSTunnel client service</h4>
+          <div class="code-block"><div class="code-label"><span>/etc/systemd/system/wstunnel.service</span><button class="copy-btn">Copy</button></div><pre><code>[Unit]
+Description=WSTunnel Client
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/wstunnel client \
+  -L udp://51820:127.0.0.1:51820?timeout_sec=0 \
+  wss://13.205.137.92:443
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target</code></pre></div>
+          <div class="code-block"><div class="code-label"><span>bash</span><button class="copy-btn">Copy</button></div><pre><code>sudo systemctl daemon-reload
+sudo systemctl enable wstunnel
+sudo systemctl start wstunnel</code></pre></div>
+        </div>
+
+        <div class="step" data-n="6">
+          <h4>Verify WSTunnel on both ends</h4>
+          <div class="code-block"><div class="code-label"><span>bash</span><button class="copy-btn">Copy</button></div><pre><code>sudo systemctl status wstunnel
+sudo journalctl -u wstunnel -f
+sudo ss -lunp | grep 51820   # expect: 127.0.0.1:51820</code></pre></div>
+        </div>
+
+        <div class="step" data-n="7">
+          <h4>The routing-loop problem (and why it happens)</h4>
+          <p>With <code style="font-family:var(--mono);color:var(--accent)">AllowedIPs = 0.0.0.0/0</code>, WireGuard installs a default route sending <em>everything</em> through <code style="font-family:var(--mono)">wg0</code> — including WSTunnel's own outbound HTTPS connection to the AWS endpoint. That creates an infinite loop: WSTunnel → wg0 → WSTunnel → wg0…</p>
+          <div class="warn">Symptoms: no handshake, continuous retransmissions, TX increasing while RX stays at zero, and the WSTunnel TCP connection timing out.</div>
+          <p>Confirm the diagnosis:</p>
+          <div class="code-block"><div class="code-label"><span>bash</span><button class="copy-btn">Copy</button></div><pre><code>sudo wg-quick down wg0
+nc -vz 13.205.137.92 443   # succeeds with wg0 down
+
+sudo wg-quick up wg0
+nc -vz 13.205.137.92 443   # times out with wg0 up</code></pre></div>
+        </div>
+
+        <div class="step" data-n="8">
+          <h4>Fix: static host route around the tunnel</h4>
+          <p>Route traffic to the AWS public IP via the physical interface so it never re-enters wg0.</p>
+          <div class="code-block"><div class="code-label"><span>bash — manual test</span><button class="copy-btn">Copy</button></div><pre><code>sudo ip route add 13.205.137.92/32 via 192.168.74.254 dev ens33
+ip route   # expect: 13.205.137.92 via 192.168.74.254 dev ens33</code></pre></div>
+          <p>Make it permanent by adding it to the WireGuard config itself:</p>
+          <div class="code-block"><div class="code-label"><span>append to wg0.conf</span><button class="copy-btn">Copy</button></div><pre><code>PostUp = ip route add 13.205.137.92/32 via 192.168.74.254 dev ens33
+PostDown = ip route del 13.205.137.92/32 via 192.168.74.254 dev ens33</code></pre></div>
+          <div class="note">Replace <code style="font-family:var(--mono)">192.168.74.254</code> / <code style="font-family:var(--mono)">ens33</code> with your own physical gateway and interface name.</div>
+        </div>
+
+        <div class="step" data-n="9">
+          <h4>Restart everything and validate</h4>
+          <div class="code-block"><div class="code-label"><span>bash</span><button class="copy-btn">Copy</button></div><pre><code>sudo systemctl restart wstunnel
+sudo systemctl restart wg-quick@wg0
+sudo wg show
+ip route
+ping 192.168.100.1
+sudo journalctl -u wstunnel</code></pre></div>
+          <p>Expect a fresh handshake with growing RX/TX, the static host route present alongside the default route, and WSTunnel logs showing accepted WebSocket connections rather than timeouts.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== PHASE 4 ===== -->
+    <section id="phase4" class="phase-panel">
+      <div class="section-head"><span class="section-num">P4</span><h2>Windows Server Client Configuration</h2></div>
+      <p class="section-desc">Same WireGuard architecture and the same WSTunnel-over-HTTPS transport, on Windows Server 2022 — WireGuard talks to WSTunnel locally over <code style="font-family:var(--mono);color:var(--accent)">127.0.0.1:51820</code>, and WSTunnel carries it out over TCP 443.</p>
+
+      <div class="steps">
+        <div class="step" data-n="1">
+          <h4>Install the WireGuard for Windows client</h4>
+          <p>Download and install the official client, launch it, create a new empty tunnel, and let it generate a key pair. Copy the generated public key.</p>
+        </div>
+
+        <div class="step" data-n="2">
+          <h4>Register the Windows peer on the server</h4>
+          <div class="code-block"><div class="code-label"><span>on server — /etc/wireguard/wg0.conf</span><button class="copy-btn">Copy</button></div><pre><code>[Peer]
+PublicKey = WINDOWS_PUBLIC_KEY
+AllowedIPs = 192.168.150.40/32</code></pre></div>
+          <div class="code-block"><div class="code-label"><span>bash — on server</span><button class="copy-btn">Copy</button></div><pre><code>sudo systemctl restart wg-quick@wg0</code></pre></div>
+        </div>
+
+        <div class="step" data-n="3">
+          <h4>Configure the Windows WireGuard tunnel</h4>
+          <div class="code-block"><div class="code-label"><span>WireGuard GUI — tunnel config</span><button class="copy-btn">Copy</button></div><pre><code>[Interface]
+PrivateKey = WINDOWS_PRIVATE_KEY
+Address = 192.168.150.40/24
+DNS = 192.168.150.40
+
+[Peer]
+PublicKey = SERVER_PUBLIC_KEY
+Endpoint = 127.0.0.1:51820
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25</code></pre></div>
+          <div class="warn">The endpoint is <code style="font-family:var(--mono)">127.0.0.1:51820</code>, not the AWS public IP — WSTunnel handles the real network hop.</div>
+        </div>
+
+        <div class="step" data-n="4">
+          <h4>Install WSTunnel for Windows</h4>
+          <p>Download the Windows AMD64 release and extract to <code style="font-family:var(--mono);color:var(--accent)">C:\wstunnel\wstunnel.exe</code>.</p>
+        </div>
+
+        <div class="step" data-n="5">
+          <h4>Test WSTunnel manually first</h4>
+          <div class="code-block"><div class="code-label"><span>cmd — run as Administrator</span><button class="copy-btn">Copy</button></div><pre><code>C:\wstunnel\wstunnel.exe client ^
+  -L udp://51820:127.0.0.1:51820?timeout_sec=0 ^
+  wss://13.205.137.92:443</code></pre></div>
+          <p>If it starts cleanly with no errors, proceed to make it a service.</p>
+        </div>
+
+        <div class="step" data-n="6">
+          <h4>Wrap it as a Windows service with NSSM</h4>
+          <div class="code-block"><div class="code-label"><span>cmd — elevated</span><button class="copy-btn">Copy</button></div><pre><code>nssm install WSTunnel</code></pre></div>
+          <div class="table-wrap"><table>
+            <tr><th>Field</th><th>Value</th></tr>
+            <tr><td>Application</td><td>C:\wstunnel\wstunnel.exe</td></tr>
+            <tr><td>Startup directory</td><td>C:\wstunnel</td></tr>
+            <tr><td>Arguments</td><td>client -L udp://51820:127.0.0.1:51820?timeout_sec=0 wss://13.205.137.92:443</td></tr>
+          </table></div>
+          <div class="code-block"><div class="code-label"><span>cmd</span><button class="copy-btn">Copy</button></div><pre><code>net start WSTunnel</code></pre></div>
+        </div>
+
+        <div class="step" data-n="7">
+          <h4>Known blocker: missing Visual C++ Runtime</h4>
+          <p>If WSTunnel exits immediately with no logs and NSSM reports failures, the Microsoft Visual C++ Redistributable (2015–2022 x64) is missing.</p>
+          <div class="note">Fix: install <code style="font-family:var(--mono)">VC_redist.x64.exe</code>, reboot the server, then restart the WSTunnel service.</div>
+        </div>
+
+        <div class="step" data-n="8">
+          <h4>Allow the right traffic through Windows Firewall</h4>
+          <div class="pill-list">
+            <span class="pill">WireGuard</span>
+            <span class="pill">WSTunnel</span>
+            <span class="pill">Loopback (127.0.0.1)</span>
+            <span class="pill">Outbound HTTPS (443)</span>
+          </div>
+          <p>No inbound UDP 51820 rule is required — WireGuard only ever talks to WSTunnel locally.</p>
+        </div>
+
+        <div class="step" data-n="9">
+          <h4>Validate</h4>
+          <div class="code-block"><div class="code-label"><span>cmd</span><button class="copy-btn">Copy</button></div><pre><code>sc query WSTunnel
+ping 192.168.100.1
+ping 192.168.150.20
+nslookup &lt;internal-hostname&gt;</code></pre></div>
+          <p>In the WireGuard GUI: tunnel active, latest handshake updating, RX/TX counters climbing.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= VALIDATION ================= -->
+    <section id="validation">
+      <div class="section-head"><span class="section-num">06</span><h2>Validation Checklist</h2></div>
+      <p class="section-desc">Click each item to mark it complete — useful for tracking a rollout across multiple machines. Progress is reflected in the sidebar.</p>
+      <div class="checklist" id="checklist">
+        <div class="check-item"><div class="check-box"></div><div class="check-label"><b>WireGuard installed on server &amp; all clients</b><span>apt install wireguard / official Windows client</span></div></div>
+        <div class="check-item"><div class="check-box"></div><div class="check-label"><b>IP forwarding enabled on server</b><span>net.ipv4.ip_forward = 1</span></div></div>
+        <div class="check-item"><div class="check-box"></div><div class="check-label"><b>Server keys generated, wg0.conf written</b><span>/etc/wireguard/wg0.conf</span></div></div>
+        <div class="check-item"><div class="check-box"></div><div class="check-label"><b>Every peer registered with a unique /32</b><span>AllowedIPs = &lt;client_ip&gt;/32</span></div></div>
+        <div class="check-item"><div class="check-box"></div><div class="check-label"><b>nftables rules applied &amp; NAT masquerade active</b><span>sudo nft list ruleset</span></div></div>
+        <div class="check-item"><div class="check-box"></div><div class="check-label"><b>wg-quick@wg0 enabled &amp; running</b><span>systemctl status wg-quick@wg0</span></div></div>
+        <div class="check-item"><div class="check-box"></div><div class="check-label"><b>Handshake visible with growing RX/TX</b><span>sudo wg show</span></div></div>
+        <div class="check-item"><div class="check-box"></div><div class="check-label"><b>Gateway &amp; cross-subnet ping succeed</b><span>ping 192.168.100.1 / ping 192.168.150.20</span></div></div>
+        <div class="check-item"><div class="check-box"></div><div class="check-label"><b>DNS resolves via AD-DS</b><span>resolvectl status → 192.168.150.40</span></div></div>
+        <div class="check-item"><div class="check-box"></div><div class="check-label"><b>WSTunnel server &amp; client services running</b><span>systemctl status wstunnel</span></div></div>
+        <div class="check-item"><div class="check-box"></div><div class="check-label"><b>Static host route bypasses the tunnel for the AWS IP</b><span>PostUp/PostDown in wg0.conf</span></div></div>
+        <div class="check-item"><div class="check-box"></div><div class="check-label"><b>Windows: VC++ Redistributable installed</b><span>required for wstunnel.exe</span></div></div>
+        <div class="check-item"><div class="check-box"></div><div class="check-label"><b>Windows: WSTunnel running as NSSM service</b><span>sc query WSTunnel → RUNNING</span></div></div>
+      </div>
+    </section>
+
+    <!-- ================= TROUBLESHOOTING ================= -->
+    <section id="troubleshooting">
+      <div class="section-head"><span class="section-num">07</span><h2>Troubleshooting</h2></div>
+      <p class="section-desc">Click a symptom to expand cause and fix.</p>
+
+      <div class="acc-list">
+        <div class="acc-item">
+          <div class="acc-head"><b>No WireGuard handshake<span class="tag cause">common</span></b><span class="acc-icon">+</span></div>
+          <div class="acc-body">
+            <p><b style="color:var(--text)">Possible causes:</b> incorrect server/client keys, peer not added on the server, WSTunnel not running, wrong endpoint (should be 127.0.0.1:51820 after WSTunnel is in place), or TCP 443 blocked upstream.</p>
+            <p><b style="color:var(--text)">Check:</b> <code style="font-family:var(--mono)">sudo wg show</code> on both ends, and confirm the peer's public key matches exactly.</p>
+          </div>
+        </div>
+
+        <div class="acc-item">
+          <div class="acc-head"><b>WSTunnel connection times out through the VPN<span class="tag cause">routing loop</span></b><span class="acc-icon">+</span></div>
+          <div class="acc-body">
+            <p><b style="color:var(--text)">Cause:</b> <code style="font-family:var(--mono)">AllowedIPs = 0.0.0.0/0</code> routes WSTunnel's own outbound connection back through <code style="font-family:var(--mono)">wg0</code>, creating a recursive loop.</p>
+            <p><b style="color:var(--text)">Fix:</b> add a static host route to the AWS public IP via the physical interface (PostUp/PostDown in wg0.conf). See Phase 3, step 8.</p>
+          </div>
+        </div>
+
+        <div class="acc-item">
+          <div class="acc-head"><b>curl to https://&lt;server&gt;:443 returns "HTTP 400 Invalid request"<span class="tag fix">expected</span></b><span class="acc-icon">+</span></div>
+          <div class="acc-body">
+            <p>This is <b style="color:var(--text)">not an error</b>. WSTunnel only accepts WebSocket upgrade requests, not plain HTTPS GETs — a 400 confirms the service is up and reachable on 443.</p>
+          </div>
+        </div>
+
+        <div class="acc-item">
+          <div class="acc-head"><b>WSTunnel fails to start on Windows<span class="tag cause">missing runtime</span></b><span class="acc-icon">+</span></div>
+          <div class="acc-body">
+            <p><b style="color:var(--text)">Symptoms:</b> process exits immediately, NSSM reports service failures, no WSTunnel logs are produced.</p>
+            <p><b style="color:var(--text)">Cause:</b> the Microsoft Visual C++ Redistributable (2015–2022 x64) is not installed.</p>
+            <p><b style="color:var(--text)">Fix:</b> install VC_redist.x64.exe, reboot, restart the service.</p>
+          </div>
+        </div>
+
+        <div class="acc-item">
+          <div class="acc-head"><b>NSSM service won't stay running<span class="tag cause">dependency</span></b><span class="acc-icon">+</span></div>
+          <div class="acc-body">
+            <p><b style="color:var(--text)">Cause:</b> same VC++ runtime dependency issue causing wstunnel.exe to terminate immediately.</p>
+            <p><b style="color:var(--text)">Fix:</b> install the runtime, then recreate or restart the NSSM service.</p>
+          </div>
+        </div>
+
+        <div class="acc-item">
+          <div class="acc-head"><b>WSTunnel client can't connect to the server at all<span class="tag cause">connectivity</span></b><span class="acc-icon">+</span></div>
+          <div class="acc-body">
+            <p><b style="color:var(--text)">Checklist:</b></p>
+            <p>• AWS Security Group allows inbound TCP 443<br>• wstunnel.service is running on the server (<code style="font-family:var(--mono)">systemctl status wstunnel</code>)<br>• <code style="font-family:var(--mono)">nc -vz &lt;server_ip&gt; 443</code> succeeds from the client<br>• the static host route for the AWS public IP exists (Linux full-tunnel clients)</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= FINDINGS ================= -->
+    <section id="findings">
+      <div class="section-head"><span class="section-num">08</span><h2>Design Decisions, Advantages &amp; Limitations</h2></div>
+
+      <div class="table-wrap">
+        <table>
+          <tr><th>Decision</th><th>Reason</th></tr>
+          <tr><td>AWS-hosted VPN server</td><td>Centralized, secure access point</td></tr>
+          <tr><td>Multiple subnets on one interface</td><td>Simplified routing and scalability</td></tr>
+          <tr><td>Static peer addressing</td><td>Predictable management and ACLs</td></tr>
+          <tr><td>Public-key authentication</td><td>Eliminates shared secrets</td></tr>
+          <tr><td>Full-tunnel (0.0.0.0/0)</td><td>Centralized traffic routing</td></tr>
+          <tr><td>DNS via AD-DS</td><td>Unified name resolution and domain integration</td></tr>
+        </table>
+      </div>
+
+      <div class="grid-2" style="margin-top:24px;">
+        <div class="card">
+          <h4 style="color:var(--ok)">Advantages</h4>
+          <p>Lightweight, low latency, high throughput, minimal config overhead, strong modern cryptography, easy peer management, cross-platform (Linux + Windows), scales to multiple private networks, centralized SOC gateway.</p>
+        </div>
+        <div class="card">
+          <h4 style="color:var(--danger)">Limitations</h4>
+          <p>Native UDP 51820 may be blocked by enterprise firewalls (hence WSTunnel). Full-tunnel routing needs careful route management to avoid loops. Public-key distribution must be managed securely. WireGuard itself has no built-in centralized identity management — authorization is purely by configured public key.</p>
+        </div>
+      </div>
+
+      <p class="section-desc" style="margin-top:26px;">Key findings:</p>
+      <div class="steps">
+        <div class="step" data-n="•"><p>A single WireGuard interface can host multiple IP subnets, letting one gateway serve several logical networks at once.</p></div>
+        <div class="step" data-n="•"><p>A unique <code style="font-family:var(--mono);color:var(--accent)">/32</code> AllowedIPs per peer guarantees deterministic routing and avoids address conflicts.</p></div>
+        <div class="step" data-n="•"><p><code style="font-family:var(--mono);color:var(--accent)">PersistentKeepalive = 25</code> keeps NAT mappings alive for clients behind NAT or restrictive firewalls.</p></div>
+        <div class="step" data-n="•"><p>Integrating the VPN with AD-DS DNS (192.168.150.40) gives centralized name resolution for domain-joined and VPN-connected hosts.</p></div>
+        <div class="step" data-n="•"><p>WSTunnel extends the same WireGuard deployment to run over HTTPS wherever native UDP is blocked, without changing the underlying VPN design.</p></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="backtotop" id="backtotop">↑</div>
+
+<footer>WireGuard VPN — Hybrid SOC Infrastructure · Interactive README · generated from implementation report</footer>
+
+<script>
+// ---------- copy to clipboard ----------
+document.querySelectorAll('.copy-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const code = btn.closest('.code-block').querySelector('code').innerText;
+    navigator.clipboard.writeText(code).then(()=>{
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied');}, 1500);
+    });
+  });
+});
+
+// ---------- phase tabs ----------
+const tabs = document.querySelectorAll('.phase-tab');
+const panels = document.querySelectorAll('.phase-panel');
+tabs.forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    const target = tab.dataset.phase;
+    tabs.forEach(t=>t.classList.remove('active'));
+    panels.forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(target).classList.add('active');
+    document.getElementById(target).scrollIntoView({behavior:'smooth', block:'start'});
+  });
+});
+
+// ---------- sidebar nav click ----------
+const navlinks = document.querySelectorAll('.navlink');
+navlinks.forEach(link=>{
+  link.addEventListener('click', ()=>{
+    const id = link.dataset.target;
+    // if it's a phase, activate its tab too
+    if(['phase1','phase2','phase3','phase4'].includes(id)){
+      tabs.forEach(t=>t.classList.remove('active'));
+      panels.forEach(p=>p.classList.remove('active'));
+      document.querySelector(`.phase-tab[data-phase="${id}"]`).classList.add('active');
+      document.getElementById(id).classList.add('active');
+    }
+    document.getElementById(id).scrollIntoView({behavior:'smooth', block:'start'});
+  });
+});
+
+// ---------- active nav highlighting on scroll ----------
+const sections = document.querySelectorAll('section[id]');
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(entry=>{
+    if(entry.isIntersecting){
+      const id = entry.target.id;
+      navlinks.forEach(l=>l.classList.toggle('active', l.dataset.target===id));
+    }
+  });
+}, {rootMargin:'-20% 0px -70% 0px'});
+sections.forEach(s=>io.observe(s));
+
+// ---------- checklist ----------
+const items = document.querySelectorAll('.check-item');
+const fill = document.getElementById('progressFill');
+const count = document.getElementById('progressCount');
+function updateProgress(){
+  const total = items.length;
+  const done = document.querySelectorAll('.check-item.done').length;
+  fill.style.width = total? (done/total*100)+'%':'0%';
+  count.textContent = `${done} / ${total} steps checked`;
+}
+items.forEach(item=>{
+  item.addEventListener('click', ()=>{
+    item.classList.toggle('done');
+    updateProgress();
+  });
+});
+updateProgress();
+
+// ---------- accordion ----------
+document.querySelectorAll('.acc-head').forEach(head=>{
+  head.addEventListener('click', ()=>{
+    head.closest('.acc-item').classList.toggle('open');
+  });
+});
+
+// ---------- back to top ----------
+const backBtn = document.getElementById('backtotop');
+window.addEventListener('scroll', ()=>{
+  backBtn.classList.toggle('show', window.scrollY > 600);
+});
+backBtn.addEventListener('click', ()=>window.scrollTo({top:0, behavior:'smooth'}));
+</script>
+</body>
+</html>
