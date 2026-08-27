@@ -1,0 +1,35 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Certificates / private keys / truststores
+certs/
+*.pem
+*.key
+*.crt
+*.jks
+*.p12
+*.pfx
+*.keystore
+
+# Backups
+backups/
+*.backup
+*.backup-*
+*.conf.backup*
+
+# Python generated files
+__pycache__/
+*.py[cod]
+
+# Editor temporary files
+*~
+*.swp
+*.swo
+
+# IDE / OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
